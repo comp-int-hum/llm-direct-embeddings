@@ -79,7 +79,7 @@ if __name__ == "__main__":
         print(ns_ground_cs, ns_ground_ld)
         
 
-        alt_ids = [w for w in bktree.find(row["NS"], arg.max_ld)] #maxld
+        alt_ids = [w for w in bktree.find(row["NS"], args.max_ld)] #maxld
         full_res_df = pd.DataFrame.from_records({"Alt":[a[1] for a in alt_ids], "LD":[a[0] for a in alt_ids]})
 
         def fullPreds(row):
