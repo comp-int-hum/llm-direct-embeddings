@@ -9,8 +9,12 @@ from transformers import CanineModel
 import jellyfish
 import os
 
+log_format = "%(asctime)s::%(filename)s::%(message)s"
+
+logging.basicConfig(level='INFO', format=log_format)
 
 #character embeddings as punishment matrix for ld?
+#are the character embeddings of letters that can 
 
 def get_hidden_states(encoded, char_span, model, layers):
     with torch.no_grad():
@@ -95,6 +99,7 @@ if __name__ == "__main__":
 
 
 		full_res_df[["CSSimMean", "CSSimPad"]] = full_res_df.apply(fullPreds, axis=1, result_type="expand")
+		os.path.join(os.path.dirname(args.outfile),str(row.name)+".csv")
 		full_res_df.to_csv(os.path.join(os.path.dirname(args.outfile),str(row.name)+".csv"))
 
 		min_ld = full_res_df[full_res_df.LD == full_res_df.LD.min()]
@@ -106,12 +111,17 @@ if __name__ == "__main__":
 
 		#print(max_cs_in_min_ld.Alt, max_cs_in_min_ld.CSSimMean)
 		#print(max_cs_pad_in_min_ld.Alt, max_cs_pad_in_min_ld.CSSimPad)
-		print(cs_meaned_orig_ground, cs_padded_orig_ground, ns_ground_ld)
-		print(max_cs_in_min_ld.Alt, max_cs_in_min_ld.LD, max_cs_in_min_ld.CSSimMean)
-		print(max_cs_pad_in_min_ld.Alt, max_cs_pad_in_min_ld.LD, max_cs_pad_in_min_ld.CSSimPad)
-		print(max_cs_mean.Alt, max_cs_pad.Alt)
+		#print(cs_meaned_orig_ground, cs_padded_orig_ground, ns_ground_ld)
+		logging.info(max_cs_in_min_ld.Alt.to_numpy()[0])
+		logging.info(max_cs_in_min_ld.LD.to_numpy()[0])
+		logging.info(max_cs_in_min_ld.CSSimMean.to_numpy()[0])
+		logging.info(max_cs_pad_in_min_ld.Alt.to_numpy()[0])
+		logging.info(max_cs_pad_in_min_ld.LD.to_numpy()[0])
+		logging.info(max_cs_pad_in_min_ld.CSSimPad.to_numpy()[0])
+		logging.info(max_cs_mean.Alt.to_numpy()[0])
+		logging.info(max_cs_pad.Alt.to_numpy()[0])
 
-		return cs_meaned_orig_ground, cs_padded_orig_ground, ns_ground_ld, max_cs_in_min_ld.Alt, max_cs_in_min_ld.LD, max_cs_in_min_ld.CSSimMean, max_cs_pad_in_min_ld.Alt, max_cs_pad_in_min_ld.LD, max_cs_pad_in_min_ld.CSSimPad, max_cs_mean.Alt, max_cs_pad.Alt
+		return cs_meaned_orig_ground, cs_padded_orig_ground, ns_ground_ld, max_cs_in_min_ld.Alt.to_numpy()[0], max_cs_in_min_ld.LD.to_numpy()[0], max_cs_in_min_ld.CSSimMean.to_numpy()[0], max_cs_pad_in_min_ld.Alt.to_numpy()[0], max_cs_pad_in_min_ld.LD.to_numpy()[0], max_cs_pad_in_min_ld.CSSimPad.to_numpy()[0], max_cs_mean.Alt.to_numpy()[0], max_cs_pad.Alt.to_numpy()[0]
 
 	
 	s_df[["NSGroundCSMean", "NSGroundCSPad", "NSGroundLD", "PredMean", "PredMeanLD", "PredMeanCS", "PredPad", "PredPadLD", "PredPadCS", "MaxCSMean", "MaxCSPad"]] = s_df.apply(predCanine, axis=1, result_type="expand")

@@ -13,6 +13,10 @@ import os
 import pandas as pd
 import jellyfish
 
+log_format = "%(asctime)s::%(filename)s::%(message)s"
+
+logging.basicConfig(level='INFO', format=log_format)
+
 
 def find_sublist(sl,l):
     results=[]
@@ -58,8 +62,8 @@ if __name__ == "__main__":
 		x = b_t.basic_tokenizer.tokenize(row["MaskedSample"])
 		sli = find_sublist(["[","mask","]"], x)
 		if len(sli) != 1:
-			print("mask not one")
-			print(x)
+			logging.info("mask not one")
+			logging.info(x)
 			return 0,0,0,0,0,0,0,0,0
 
 		tok_index = sli[0][0]+1
@@ -86,11 +90,15 @@ if __name__ == "__main__":
 		full_res_df.to_csv(os.path.join(os.path.dirname(args.outfile),str(row.name)+".csv"))
 		
 		max_cs_in_min_ld, min_euc_in_min_ld = fetchMaxCSandMinEucinMaxLD(full_res_df)
-		print(max_cs_in_min_ld.Alt, max_cs_in_min_ld.CSSim)
+		logging.info(max_cs_in_min_ld.Alt.to_numpy()[0])
+		logging.info(max_cs_in_min_ld.CSSim.to_numpy()[0])
 
 
 		max_cs = full_res_df[full_res_df.CSSim == full_res_df.CSSim.max()]
-		return ns_ground_cs, ns_ground_ld, max_cs_in_min_ld.Alt, max_cs_in_min_ld.LD, max_cs_in_min_ld.CSSim, min_euc_in_min_ld.Alt, min_euc_in_min_ld.LD, min_euc_in_min_ld.EucDist, max_cs.Alt
+		logging.info(max_cs.to_numpy()[0])
+
+
+		return ns_ground_cs, ns_ground_ld, max_cs_in_min_ld.Alt.to_numpy()[0], max_cs_in_min_ld.LD.to_numpy()[0], max_cs_in_min_ld.CSSim.to_numpy()[0], min_euc_in_min_ld.Alt.to_numpy()[0], min_euc_in_min_ld.LD.to_numpy()[0], min_euc_in_min_ld.EucDist.to_numpy()[0], max_cs.Alt.to_numpy()[0]
 
 
 

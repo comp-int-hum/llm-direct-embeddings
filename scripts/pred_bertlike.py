@@ -9,8 +9,13 @@ from transformers import AutoModel, AutoTokenizer
 import jellyfish
 import os
 
+import logging
 
 
+
+log_format = "%(asctime)s::%(filename)s::%(message)s"
+
+logging.basicConfig(level='INFO', format=log_format)
 #scons -N 10 (or whatever) jobs
 #then chunk data into 10 chunks, and iterate over it applying all variants eventually to each
 #should auto parallelize 
@@ -74,9 +79,8 @@ if __name__ == "__main__":
         ns_ground_cs = torch.cosine_similarity(orig_ns_vec.reshape(1,-1), ground_vec.reshape(1,-1)).numpy().tolist()[0]
         ns_ground_ld = jellyfish.levenshtein_distance(row["Ground"], row["NS"])
 
-        print(row.name)
-        print(row["Ground"], row["NS"])
-        print(ns_ground_cs, ns_ground_ld)
+        logging.info(row["Ground"])
+        logging.info(row["NS"])
         
 
         alt_ids = [w for w in bktree.find(row["NS"], args.max_ld)] #maxld
@@ -94,13 +98,15 @@ if __name__ == "__main__":
 
         max_cs_in_min_ld, min_euc_in_min_ld = fetchMaxCSandMinEucinMaxLD(full_res_df)
 
-        print(max_cs_in_min_ld.Alt, max_cs_in_min_ld.CSSim)
 
+        logging.info(max_cs_in_min_ld.Alt.to_numpy()[0])
+        logging.info(max_cs_in_min_ld.CSSim.to_numpy()[0])
 
         max_cs = full_res_df[full_res_df.CSSim == full_res_df.CSSim.max()]
+        logging.info(max_cs.Alt.to_numpy()[0])
 
 
-        return ns_ground_cs, ns_ground_ld, max_cs_in_min_ld.Alt, max_cs_in_min_ld.LD, max_cs_in_min_ld.CSSim, min_euc_in_min_ld.Alt, min_euc_in_min_ld.LD, min_euc_in_min_ld.EucDist, max_cs.Alt
+        return ns_ground_cs, ns_ground_ld, max_cs_in_min_ld.Alt.to_numpy()[0], max_cs_in_min_ld.LD.to_numpy()[0], max_cs_in_min_ld.CSSim.to_numpy()[0], min_euc_in_min_ld.Alt.to_numpy()[0], min_euc_in_min_ld.LD.to_numpy()[0], min_euc_in_min_ld.EucDist.to_numpy()[0], max_cs.Alt.to_numpy()[0]
 
     s_df[["NS_GroundCS", "NS_GroundLD", "Pred", "PredLD","PredCS", "PredEuc", "PredEucLD", "PredEucEuc", "Max_CSAlt"]] = s_df.apply(predBertlike, axis=1, result_type="expand")
     s_df.to_csv(args.outfile)

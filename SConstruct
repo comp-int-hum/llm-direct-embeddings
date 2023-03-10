@@ -23,13 +23,14 @@ import pickle
 vars = Variables("custom.py")
 vars.AddVariables(
     ("OUTPUT_WIDTH", "", 5000),
-    ("MODELS","",["google/canine-c"]),
-    #("MODELS", "", ["bert-base-uncased", "bert-large-uncased", "robert-base", "roberta-large", "general_character_bert", "google/canine-c", "google/canine-s"]),
-    ("LAYERS","", [[-1,-2,-3,-4], [-1], [1], [2], [3], [1,2,3], [6]]),
+    ("MODELS","",["google/canine-c", "bert-large-uncased", "general_character_bert", "roberta-large"]),
+    #("MODELS", "", ["bert-base-uncased", "bert-large-uncased", "roberta-base", "roberta-large", "general_character_bert", "google/canine-c", "google/canine-s"]),
+    #("LAYERS","", [[-1,-2,-3,-4], [-1], [1], [2], [3], [1,2,3], [6]]),
+    ("LAYERS","",[-1], [-1,-2,-3,-4],[1,2,3], [6]),
     ("DATASETS", "", ["fce-released-dataset","mycorpus"]),
     ("CORPORA_DIR","","corpora"),
     ("RANDOM_STATE","", 10),
-    ("NUM_CHUNKS","",50),
+    ("NUM_CHUNKS","",4),
     ("MAX_LD","",3)
 )
 
@@ -61,7 +62,12 @@ env.AddBuilder(
     "RunCaninePred",
     "scripts/pred_canine.py",
     "${SOURCES[0]} --model ${MODEL_NAME} --pred_out ${TARGETS[0]}, --layers ${LAYERS} --max_ld ${MAX_LD}"
+    )
 
+env.AddBuilder(
+    "EvalCanine",
+    "scripts/eval_canine.py",
+    "${SOURCES} --eval_out ${TARGETS[0]}"
     )
 
 """
@@ -122,19 +128,22 @@ env.Decider("timestamp-newer")
 #chunk into X pieces for use with -j --jobs (so can implicitly multicore over x processors)
 res = []
 for dataset_name in env["DATASETS"]:
-    s_chunks = ["work/"+dataset_name+"/samplec"+str(x)+".csv" for x in range(0,env["NUM_CHUNKS"])]
+    s_chunks = ["work/"+dataset_name+"/samplec"+str(x)+".csv" for x in range(0,env["NUM_CHUNKS"])][0:2]
     samples = env.LoadSamples(s_chunks, [], [], DATASET_NAME = dataset_name, CORPUS_DIR = env["CORPORA_DIR"], NUM_CHUNKS = env["NUM_CHUNKS"])
 
     for model_name in env["MODELS"]:
         if model_name in ["bert-large-uncased", "bert-base-uncased", "roberta-base", "roberta-large"]:
             for layer in env["LAYERS"]:
+                r = []
                 for i,schunk in enumerate(samples):
-                    res.append(env.RunBertlikePred("work/${DATASET_NAME}/${MODEL_NAME}/${LAYERS}/pred"+str(i)+".csv", schunk, [], DATASET_NAME=dataset_name, MODEL_NAME=model_name, LAYERS=layer))
+                    r.append(env.RunBertlikePred("work/${DATASET_NAME}/${MODEL_NAME}/${LAYERS}/pred"+str(i)+".csv", schunk, [], DATASET_NAME=dataset_name, MODEL_NAME=model_name, LAYERS=layer))
         elif model_name == "general_character_bert":
+            r = []
             for i, schunk in enumerate(samples):
-                res.append(env.RunCBERTPred("work/${DATASET_NAME}/${MODEL_NAME}/pred"+str(i)+".csv", schunk, [], DATASET_NAME=dataset_name))
+                r.append(env.RunCBERTPred("work/${DATASET_NAME}/${MODEL_NAME}/pred"+str(i)+".csv", schunk, [], DATASET_NAME=dataset_name))
         elif model_name in ["google/canine-c", "google/canine-s"]:
+            r = []
             for layer in env["LAYERS"]:
                 for i, schunk in enumerate(samples):
-                    res.append(env.RunCaninePred("work/${DATASET_NAME}/${MODEL_NAME}/${LAYERS}/pred"+str(i)+".csv", schunk, [], DATASET_NAME=dataset_name, MODEL_NAME=model_name, LAYERS=layer))
-
+                    r.append(env.RunCaninePred("work/${DATASET_NAME}/${MODEL_NAME}/${LAYERS}/pred"+str(i)+".csv", schunk, [], DATASET_NAME=dataset_name, MODEL_NAME=model_name, LAYERS=layer))
+                res.append(env.EvalCanine("work/${DATASET_NAME}/${MODEL_NAME}/${LAYERS}/eval.csv", r, [], DATASET_NAME=dataset_name, MODEL_NAME=model_name, LAYERS=layer))
