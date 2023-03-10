@@ -79,6 +79,7 @@ if __name__ == "__main__":
         ns_ground_cs = torch.cosine_similarity(orig_ns_vec.reshape(1,-1), ground_vec.reshape(1,-1)).numpy().tolist()[0]
         ns_ground_ld = jellyfish.levenshtein_distance(row["Ground"], row["NS"])
 
+        logging.info(row["sample"])
         logging.info(row["Ground"])
         logging.info(row["NS"])
         

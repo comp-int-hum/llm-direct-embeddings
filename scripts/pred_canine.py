@@ -83,6 +83,10 @@ if __name__ == "__main__":
 		alt_ids = [w for w in bktree.find(row["NS"], args.max_ld)] #maxld
 		full_res_df = pd.DataFrame.from_records({"Alt":[a[1] for a in alt_ids], "LD":[a[0] for a in alt_ids]})
 
+        logging.info(row["sample"])
+        logging.info(row["Ground"])
+        logging.info(row["NS"])
+
 		def fullPreds(row):
 			try:
 				alt_inserted_encoded, new_ei = insert_alt_seq_at_index(orig_str, row["Alt"], s_i, e_i)
@@ -108,6 +112,7 @@ if __name__ == "__main__":
 
 		max_cs_mean = full_res_df[full_res_df.CSSimMean == full_res_df.CSSimMean.max()]
 		max_cs_pad = full_res_df[full_res_df.CSSimPad == full_res_df.CSSimPad.max()]
+
 
 		#print(max_cs_in_min_ld.Alt, max_cs_in_min_ld.CSSimMean)
 		#print(max_cs_pad_in_min_ld.Alt, max_cs_pad_in_min_ld.CSSimPad)

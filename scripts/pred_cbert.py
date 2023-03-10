@@ -81,6 +81,10 @@ if __name__ == "__main__":
 		alt_ids = [w for w in bktree.find(row["NS"], args.max_ld)] #maxld
 		full_res_df = pd.DataFrame.from_records({"Alt":[a[1] for a in alt_ids], "LD":[a[0] for a in alt_ids]})
 
+        logging.info(row["sample"])
+        logging.info(row["Ground"])
+        logging.info(row["NS"])
+
 		def fullPreds(row):
 			x2 = insert_over_mask_token_at_index(x, tok_index, row["Alt"])
 			alt_e = get_embedding_cbert(model, x2, tok_index, indexer)

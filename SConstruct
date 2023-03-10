@@ -26,7 +26,7 @@ vars.AddVariables(
     ("MODELS","",["google/canine-c", "bert-large-uncased", "general_character_bert", "roberta-large"]),
     #("MODELS", "", ["bert-base-uncased", "bert-large-uncased", "roberta-base", "roberta-large", "general_character_bert", "google/canine-c", "google/canine-s"]),
     #("LAYERS","", [[-1,-2,-3,-4], [-1], [1], [2], [3], [1,2,3], [6]]),
-    ("LAYERS","",[-1], [-1,-2,-3,-4],[1,2,3], [6]),
+    ("LAYERS","",[[-1], [-1,-2,-3,-4],[1,2,3], [6]]),
     ("DATASETS", "", ["fce-released-dataset","mycorpus"]),
     ("CORPORA_DIR","","corpora"),
     ("RANDOM_STATE","", 10),
