@@ -12,6 +12,7 @@ import os
 
 import pandas as pd
 import jellyfish
+import logging
 
 log_format = "%(asctime)s::%(filename)s::%(message)s"
 
@@ -58,36 +59,48 @@ if __name__ == "__main__":
 
 	s_df["MaskedSample"] = s_df.apply(maskSample, mask_token=b_t.mask_token, axis=1) #going to use mask as a place to insert candidates
 
-	def predCBERT(row):
-		x = b_t.basic_tokenizer.tokenize(row["MaskedSample"])
-		sli = find_sublist(["[","mask","]"], x)
-		if len(sli) != 1:
-			logging.info("mask not one")
-			logging.info(x)
-			return 0,0,0,0,0,0,0,0,0
+    with gzip.open(args.outfile, "wt") as of:
+        for t,row in s_df.iterrows():
+        	row_dict = {}
 
-		tok_index = sli[0][0]+1
-		x = ["[CLS]", *x, "[SEP]"]
-		x2 = insert_over_mask_token_at_index(x, tok_index, row["NS"])
-		#x2 = x[0:tok_index] + [row["NS"]] + x[tok_index+3:]
-		NS_e = get_embedding_cbert(model,x2,tok_index,indexer)
+			x = b_t.basic_tokenizer.tokenize(row["MaskedSample"])
+			sli = find_sublist(["[","mask","]"], x)
+			if len(sli) != 1:
+				logging.info("mask not one")
+				logging.info(x)
+				pass
 
-		x2 = insert_over_mask_token_at_index(x, tok_index, row["Ground"])
-		ground_vec = get_embedding_cbert(model,x2,tok_index,indexer)
+			tok_index = sli[0][0]+1
+			x = ["[CLS]", *x, "[SEP]"]
+			x2 = insert_over_mask_token_at_index(x, tok_index, row["NS"])
+			#x2 = x[0:tok_index] + [row["NS"]] + x[tok_index+3:]
+			NS_e = get_embedding_cbert(model,x2,tok_index,indexer)
 
-		ns_ground_cs = torch.cosine_similarity(NS_e.reshape(1,-1), ground_vec.reshape(1,-1)).numpy().tolist()[0]
-		ns_ground_ld = jellyfish.levenshtein_distance(row["Ground"], row["NS"])
+			x2 = insert_over_mask_token_at_index(x, tok_index, row["Ground"])
+			ground_vec = get_embedding_cbert(model,x2,tok_index,indexer)
+			row_dict["ns_ground_cs"] = torch.cosine_similarity(NS_e.reshape(1,-1), ground_vec.reshape(1,-1)).numpy().tolist()[0]
+			row_dict["ns_ground_ld"] = jellyfish.levenshtein_distance(row["Ground"], row["NS"])
 
-		alt_ids = [w for w in bktree.find(row["NS"], args.max_ld)] #maxld
-		full_res_df = pd.DataFrame.from_records({"Alt":[a[1] for a in alt_ids], "LD":[a[0] for a in alt_ids]})
 
-        logging.info(row["sample"])
-        logging.info(row["Ground"])
-        logging.info(row["NS"])
+			logging.info(row["sample"])
+			logging.info(row["Ground"])
+			logging.info(row["NS"])
 
+			token_v_dict = {}
+            for alt in bktree.find(row["NS"], args.max_ld):
+            	x2 = insert_over_mask_token_at_index(x,tok_index,alt[1])
+            	alt_e = get_embedding_cbert(model, x2, tok_index, indexer)
+            	vdiff = torch.cosine_similarity(alt_e.reshape(1,-1), NS_e.reshape(1,-1))
+            	token_v_dict[alt[1]] = {"LD":alt[0],"CS":vdiff.numpy().tolist()[0]}
+
+			row_dict["alt_vec_dict"] = token_v_dict
+			of.write(json.dumps(row_dict) + "\n")
+
+"""
 		def fullPreds(row):
 			x2 = insert_over_mask_token_at_index(x, tok_index, row["Alt"])
 			alt_e = get_embedding_cbert(model, x2, tok_index, indexer)
+			#REVISIT
 			return torch.cosine_similarity(alt_e.reshape(1,-1), NS_e.reshape(1,-1)).numpy().tolist()[0], torch.cdist(alt_e.reshape(1,-1), NS_e.reshape(1,-1)).numpy().tolist()[0][0]
 
 		full_res_df[["CSSim","EucDist"]] = full_res_df.apply(fullPreds, axis=1, result_type="expand")
@@ -108,3 +121,4 @@ if __name__ == "__main__":
 
 	s_df[["NS_GroundCS", "NS_GroundLD", "Pred", "PredLD","PredCS", "PredEuc", "PredEucLD", "PredEucEuc", "Max_CSAlt"]] = s_df.apply(predCBERT, axis=1, result_type="expand")
 	s_df.to_csv(args.outfile)
+"""

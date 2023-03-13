@@ -10,6 +10,8 @@ import jellyfish
 import os
 
 import logging
+import gzip
+import json
 
 
 
@@ -52,6 +54,7 @@ if __name__ == "__main__":
 
     args, rest = parser.parse_known_args()
 
+
     s_df = pd.read_csv(args.seglocs)
     a_t = AutoTokenizer.from_pretrained(args.model_name)
     model = AutoModel.from_pretrained(args.model_name, output_hidden_states=True)
@@ -61,6 +64,47 @@ if __name__ == "__main__":
 
     s_df["MaskedSample"] = s_df.apply(maskSample, mask_token=a_t.mask_token, axis=1) #going to use mask as a place to insert candidates
 
+    with gzip.open(args.outfile, "wt") as of:
+        for t,row in s_df.iterrows():
+            row_dict = {}
+            encoded = a_t.encode(row["MaskedSample"], add_special_tokens=False)
+            mask_index = encoded.index(a_t.mask_token_id) 
+
+            orig_ns_encoded = a_t.encode(row["NS"],add_special_tokens=False)
+            orig_ns_inserted_ids, index_range = insert_alt_id_at_mask(orig_ns_encoded, encoded, mask_index)
+            orig_ns_prepared = a_t.prepare_for_model(ids=orig_ns_inserted_ids, return_tensors="pt", prepend_batch_axis=True)
+            orig_ns_vec = get_hidden_states(orig_ns_prepared, index_range, model, layers)
+
+            ground_encoded = a_t.encode(row["Ground"],add_special_tokens=False)
+            ground_inserted_ids, index_range = insert_alt_id_at_mask(ground_encoded, encoded, mask_index)
+            ground_prepared = a_t.prepare_for_model(ids=ground_inserted_ids, return_tensors="pt", prepend_batch_axis=True)
+            orig_ground_vec = get_hidden_states(ground_prepared, index_range, model, layers)
+
+            row_dict["ns_ground_cs"] = torch.cosine_similarity(orig_ns_vec.reshape(1,-1), orig_ground_vec.reshape(1,-1)).to_numpy[0]
+
+            row_dict["ns_ground_ld"] = jellyfish.levenshtein_distance(row["Ground"], row["NS"])
+
+            logging.info("Sample: "+row["sample"])
+            logging.info("Ground: "+row["Ground"])
+            logging.info("NS: "+row["NS"])
+
+            token_v_dict = {}
+            for alt in bktree.find(row["NS"], args.max_ld):
+                alt_inserted_ids, index_range = insert_alt_id_at_mask(a_t.encode(alt[1], add_special_tokens=False), encoded, mask_index)
+                alt_inserted_prepared = a_t.prepare_for_model(ids=alt_inserted_ids, return_tensors="pt", prepend_batch_axis=True)
+                alt_vec = get_hidden_states(alt_inserted_prepared, index_range, model, layers)
+                vdiff = torch.cosine_similarity(orig_ns_vec.reshape(1,-1), alt_vec.reshape(1,-1))
+                token_v_dict[alt[1]] = {"LD":alt[0], "CS":vdiff.to_numpy[0]}
+
+            row_dict["alt_vec_dict"] = token_v_dict
+            of.write(json.dumps(row_dict) + "\n")
+
+
+
+
+
+
+"""
     def predBertlike(row):
 
         encoded = a_t.encode(row["MaskedSample"], add_special_tokens=False)
@@ -116,8 +160,7 @@ if __name__ == "__main__":
     #tokenize over masked with inserted candidates
     #prune to length if nesc (should happen after inserting candidate, as may be X tokens)
 
-
-
+"""
 
 
 

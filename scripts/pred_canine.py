@@ -8,6 +8,7 @@ from utility.corpus_utils import maskSample, loadBrownCorpusTree
 from transformers import CanineModel
 import jellyfish
 import os
+import logging
 
 log_format = "%(asctime)s::%(filename)s::%(message)s"
 
@@ -59,7 +60,56 @@ if __name__ == "__main__":
 	layers = [int(l) for l in args.layers]
 	bktree = loadBrownCorpusTree()
 
+    with gzip.open(args.outfile, "wt") as of:
+        for t,row in s_df.iterrows():
+        	row_dict = {}
 
+			s_i = row["i"]
+			e_i = row["i"] + len(row["NS"])
+
+			orig_str = row["sample"]
+			orig_encoded = torch.tensor([[ord(c) for c in row["sample"]]])
+			ground_inserted_encoded, g_i_e_i = insert_alt_seq_at_index(orig_str, row["Ground"], s_i, e_i)
+
+			orig_embed = get_hidden_states(orig_encoded, [s_i,e_i], model, layers)
+			ground_embed = get_hidden_states(ground_inserted_encoded, [s_i,g_i_e_i], model, layers)
+
+			orig_mean = orig_embed.mean(dim=0)
+			ground_mean = ground_embed.mean(dim=0)
+
+			row_dict["ns_ground_cs"] = torch.cosine_similarity(orig_mean.reshape(1,-1), ground_mean.reshape(1,-1)).numpy().tolist()[0]
+
+			orig_padded, ground_padded = pad_smaller_t(orig_embed, ground_embed)
+			row_dict["ns_ground_cs_pad"] = torch.cosine_similarity(orig_padded.reshape(1,-1), ground_padded.reshape(1,-1)).numpy().tolist()[0]
+
+			row_dict["ns_ground_ld"] = ns_ground_ld = jellyfish.levenshtein_distance(row["Ground"], row["NS"])
+
+            logging.info("Sample: "+row["sample"])
+            logging.info("Ground: "+row["Ground"])
+            logging.info("NS: "+row["NS"])
+
+			token_v_dict = {}
+			for alt in bktree.find(row["NS"], args.max_ld):
+				try:
+					alt_inserted_encoded, new_ei = insert_alt_seq_at_index(orig_str, alt[1], s_i, e_i)
+					alt_embed = get_hidden_states(alt_inserted_encoded, [s_i,new_ei], model, layers)
+
+					alt_mean = alt_embed.mean(dim=0)
+					cs_meaned_orig_alt = torch.cosine_similarity(orig_mean.reshape(1,-1), alt_mean.reshape(1,-1))
+
+					orig_padded, alt_padded = pad_smaller_t(orig_embed, alt_embed)
+					cs_padded_orig_alt = torch.cosine_similarity(orig_padded.reshape(1,-1), alt_padded.reshape(1,-1))
+
+					token_v_dict[alt[1]] = {"LD":alt[0], "CS": cs_meaned_orig_alt.numpy().tolist()[0], "CS_Pad": cs_padded_orig_alt.numpy().tolist()[0]}
+
+				except RuntimeError:
+					logging.info("Error: Runtime")
+					pass
+
+            row_dict["alt_vec_dict"] = token_v_dict
+            of.write(json.dumps(row_dict) + "\n")
+
+"""
 	def predCanine(row):
 		s_i = row["i"]
 		e_i = row["i"] + len(row["NS"])
@@ -83,9 +133,9 @@ if __name__ == "__main__":
 		alt_ids = [w for w in bktree.find(row["NS"], args.max_ld)] #maxld
 		full_res_df = pd.DataFrame.from_records({"Alt":[a[1] for a in alt_ids], "LD":[a[0] for a in alt_ids]})
 
-        logging.info(row["sample"])
-        logging.info(row["Ground"])
-        logging.info(row["NS"])
+		logging.info(row["sample"])
+		logging.info(row["Ground"])
+		logging.info(row["NS"])
 
 		def fullPreds(row):
 			try:
@@ -131,3 +181,4 @@ if __name__ == "__main__":
 	
 	s_df[["NSGroundCSMean", "NSGroundCSPad", "NSGroundLD", "PredMean", "PredMeanLD", "PredMeanCS", "PredPad", "PredPadLD", "PredPadCS", "MaxCSMean", "MaxCSPad"]] = s_df.apply(predCanine, axis=1, result_type="expand")
 	s_df.to_csv(args.outfile)
+"""
