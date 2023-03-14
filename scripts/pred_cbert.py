@@ -6,6 +6,7 @@ from modeling.character_bert import CharacterBertModel
 from utils.character_cnn import CharacterIndexer
 from utility.corpus_utils import maskSample, loadBrownCorpusTree
 from utility.pred_utils import fetchMaxCSandMinEucinMaxLD
+from utility.pred_utils import pad_smaller_t
 
 import torch
 import os
@@ -13,10 +14,12 @@ import os
 import pandas as pd
 import jellyfish
 import logging
+import gzip, json
 
 log_format = "%(asctime)s::%(filename)s::%(message)s"
 
 logging.basicConfig(level='INFO', format=log_format)
+
 
 
 def find_sublist(sl,l):
@@ -31,7 +34,7 @@ def get_embedding_cbert(model, x, tok_range, indexer):
 	x_ids = indexer.as_padded_tensor(x)
 	with torch.no_grad():
 		embeddings_for_batch, _ = model(x_ids)
-	return torch.nan_to_num(embeddings_for_batch[tok_range])
+	return embeddings_for_batch[tok_range]
 
 def insert_over_mask_token_at_index(tokenized, index, new_token):
 	return tokenized[0:index] + [new_token] + tokenized[index+3:]
@@ -59,9 +62,9 @@ if __name__ == "__main__":
 
 	s_df["MaskedSample"] = s_df.apply(maskSample, mask_token=b_t.mask_token, axis=1) #going to use mask as a place to insert candidates
 
-    with gzip.open(args.outfile, "wt") as of:
-        for t,row in s_df.iterrows():
-        	row_dict = {}
+	with gzip.open(args.outfile, "wt") as of:
+		for t,row in s_df.iterrows():
+			row_dict = {"NS": row["NS"], "Ground":row["Ground"], "Sample":row["sample"]}
 
 			x = b_t.basic_tokenizer.tokenize(row["MaskedSample"])
 			sli = find_sublist(["[","mask","]"], x)
@@ -78,7 +81,14 @@ if __name__ == "__main__":
 
 			x2 = insert_over_mask_token_at_index(x, tok_index, row["Ground"])
 			ground_vec = get_embedding_cbert(model,x2,tok_index,indexer)
-			row_dict["ns_ground_cs"] = torch.cosine_similarity(NS_e.reshape(1,-1), ground_vec.reshape(1,-1)).numpy().tolist()[0]
+
+
+			NS_e_mean = NS_e.mean(dim=0)
+			ground_mean = ground_vec.mean(dim=0)
+
+			NS_e_pad, ground_vec_pad = pad_smaller_t(NS_e, ground_vec)
+			row_dict["ns_ground_cs"] = torch.cosine_similarity(NS_e_mean.reshape(1,-1), ground_mean.reshape(1,-1)).numpy().tolist()[0]
+			row_dict["ns_ground_cs_pad"] = torch.cosine_similarity(NS_e_pad.reshape(1,-1), ground_vec_pad.reshape(1,-1)).numpy().tolist()[0]
 			row_dict["ns_ground_ld"] = jellyfish.levenshtein_distance(row["Ground"], row["NS"])
 
 
@@ -87,11 +97,25 @@ if __name__ == "__main__":
 			logging.info(row["NS"])
 
 			token_v_dict = {}
-            for alt in bktree.find(row["NS"], args.max_ld):
-            	x2 = insert_over_mask_token_at_index(x,tok_index,alt[1])
-            	alt_e = get_embedding_cbert(model, x2, tok_index, indexer)
-            	vdiff = torch.cosine_similarity(alt_e.reshape(1,-1), NS_e.reshape(1,-1))
-            	token_v_dict[alt[1]] = {"LD":alt[0],"CS":vdiff.numpy().tolist()[0]}
+			for alt in bktree.find(row["NS"], args.max_ld):
+				x2 = insert_over_mask_token_at_index(x,tok_index,alt[1])
+				alt_e = get_embedding_cbert(model, x2, tok_index, indexer)
+				alt_e_pad, NS_e_pad = pad_smaller_t(alt_e, NS_e)
+
+				alt_e_mean = alt_e.mean(dim=0)
+
+				try:
+					vdiff_pad = torch.cosine_similarity(alt_e_pad.reshape(1,-1), NS_e_pad.reshape(1,-1))
+					vdiff_mean = torch.cosine_similarity(alt_e_mean.reshape(1,-1), NS_e_mean.reshape(1,-1))
+					token_v_dict[alt[1]] = {"LD":alt[0],"CS":vdiff_mean.numpy().tolist()[0], "CS_Pad":vdiff_pad.numpy().tolist()[0]}
+				except RuntimeError:
+					logging.info("Runtime:")
+					logging.info(alt_e)
+					logging.info(alt_e.size())
+					logging.info(NS_e.size())
+					logging.info(NS_e)
+					logging.info(x2)
+					token_v_dict[alt[1]] = {"LD":alt[0],"CS":999, "CS_Pad":999}
 
 			row_dict["alt_vec_dict"] = token_v_dict
 			of.write(json.dumps(row_dict) + "\n")

@@ -66,7 +66,7 @@ if __name__ == "__main__":
 
     with gzip.open(args.outfile, "wt") as of:
         for t,row in s_df.iterrows():
-            row_dict = {}
+            row_dict = {"NS": row["NS"], "Ground":row["Ground"], "Sample":row["sample"]}
             encoded = a_t.encode(row["MaskedSample"], add_special_tokens=False)
             mask_index = encoded.index(a_t.mask_token_id) 
 
@@ -80,7 +80,7 @@ if __name__ == "__main__":
             ground_prepared = a_t.prepare_for_model(ids=ground_inserted_ids, return_tensors="pt", prepend_batch_axis=True)
             orig_ground_vec = get_hidden_states(ground_prepared, index_range, model, layers)
 
-            row_dict["ns_ground_cs"] = torch.cosine_similarity(orig_ns_vec.reshape(1,-1), orig_ground_vec.reshape(1,-1)).to_numpy[0]
+            row_dict["ns_ground_cs"] = torch.cosine_similarity(orig_ns_vec.reshape(1,-1), orig_ground_vec.reshape(1,-1)).numpy().tolist()[0]
 
             row_dict["ns_ground_ld"] = jellyfish.levenshtein_distance(row["Ground"], row["NS"])
 
@@ -94,7 +94,7 @@ if __name__ == "__main__":
                 alt_inserted_prepared = a_t.prepare_for_model(ids=alt_inserted_ids, return_tensors="pt", prepend_batch_axis=True)
                 alt_vec = get_hidden_states(alt_inserted_prepared, index_range, model, layers)
                 vdiff = torch.cosine_similarity(orig_ns_vec.reshape(1,-1), alt_vec.reshape(1,-1))
-                token_v_dict[alt[1]] = {"LD":alt[0], "CS":vdiff.to_numpy[0]}
+                token_v_dict[alt[1]] = {"LD":alt[0], "CS":vdiff.numpy().tolist()[0]}
 
             row_dict["alt_vec_dict"] = token_v_dict
             of.write(json.dumps(row_dict) + "\n")

@@ -75,7 +75,7 @@ def maskSample(row, mask_token = "[MASK]"):
 
 
 def loadBrownCorpusTree():
-	corpus_dictionary = set([word.lower() for word in brown.words()])
+	corpus_dictionary = set([word.lower() for word in brown.words() if word.isalpha()])
 	return pybktree.BKTree(jellyfish.levenshtein_distance, corpus_dictionary)
 
 """

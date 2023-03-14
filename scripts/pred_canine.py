@@ -2,13 +2,15 @@ import argparse
 import sys
 import pandas as pd
 import torch
-import torch.nn.functional as F
+
 from utility.corpus_utils import maskSample, loadBrownCorpusTree
+from utility.pred_utils import pad_smaller_t
 
 from transformers import CanineModel
 import jellyfish
 import os
 import logging
+import gzip, json
 
 log_format = "%(asctime)s::%(filename)s::%(message)s"
 
@@ -26,14 +28,6 @@ def get_hidden_states(encoded, char_span, model, layers):
     char_encoded_output = output[char_span[0]:char_span[1]]
     return char_encoded_output
 
-
-def pad_smaller_t(t1, t2):
-	if t1.shape[0] < t2.shape[0]:
-		return F.pad(t1, (0,0,0,t2.shape[0]-t1.shape[0])), t2
-	elif t2.shape[0] < t1.shape[0]:
-		return t1, F.pad(t2, (0,0,0,t1.shape[0]-t2.shape[0]))
-	else:
-		return t1, t2
 
 def insert_alt_seq_at_index(orig, alt_seq, s_i, e_i):
 	ins_str = orig[0:s_i] + alt_seq + orig[e_i:]
@@ -60,9 +54,9 @@ if __name__ == "__main__":
 	layers = [int(l) for l in args.layers]
 	bktree = loadBrownCorpusTree()
 
-    with gzip.open(args.outfile, "wt") as of:
-        for t,row in s_df.iterrows():
-        	row_dict = {}
+	with gzip.open(args.outfile, "wt") as of:
+		for t,row in s_df.iterrows():
+			row_dict = {"NS": row["NS"], "Ground":row["Ground"], "Sample":row["sample"]}
 
 			s_i = row["i"]
 			e_i = row["i"] + len(row["NS"])
@@ -84,9 +78,9 @@ if __name__ == "__main__":
 
 			row_dict["ns_ground_ld"] = ns_ground_ld = jellyfish.levenshtein_distance(row["Ground"], row["NS"])
 
-            logging.info("Sample: "+row["sample"])
-            logging.info("Ground: "+row["Ground"])
-            logging.info("NS: "+row["NS"])
+			logging.info("Sample: "+row["sample"])
+			logging.info("Ground: "+row["Ground"])
+			logging.info("NS: "+row["NS"])
 
 			token_v_dict = {}
 			for alt in bktree.find(row["NS"], args.max_ld):
@@ -104,10 +98,10 @@ if __name__ == "__main__":
 
 				except RuntimeError:
 					logging.info("Error: Runtime")
-					pass
+					token_v_dict[alt[1]] = {"LD":alt[0], "CS": 999, "CS_Pad": 999}
 
-            row_dict["alt_vec_dict"] = token_v_dict
-            of.write(json.dumps(row_dict) + "\n")
+			row_dict["alt_vec_dict"] = token_v_dict
+			of.write(json.dumps(row_dict) + "\n")
 
 """
 	def predCanine(row):
