@@ -31,9 +31,9 @@ def loadJsonCorpusDf(corpus_in, sent_sep=True):
 					initial_res.append({"sample": js_sample["sample"], "i": i, "NS": word, "Ground": entry["Std"], "OCR": int(entry["OCR"])})
 	return pd.DataFrame.from_records(initial_res)
 
-def loadFCECorpusDf(dataset_base, allowed_error_types = ["S","SA","SX"]):
+def loadFCECorpusDf(dataset, allowed_error_types = ["S","SA","SX"]):
 	initial_res = []
-	for corpus_file in glob.glob(dataset_base+"/*/*.xml", recursive = True):
+	for corpus_file in dataset:
 		print(corpus_file)
 		with open(corpus_file) as x_in:
 			soup = BeautifulSoup(x_in, "xml")

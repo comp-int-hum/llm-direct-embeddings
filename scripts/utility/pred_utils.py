@@ -2,6 +2,8 @@ import torch
 import pandas as pd
 import torch.nn.functional as F
 
+LAYER_LOOKUP = {"last": [-1], "last_four": [-1,-2,-3,-4], "first":[0], "second":[1], "third":[2], "first_three":[0,1,2], "middle":[6]}
+
 
 def fetchMaxCSandMinEucinMaxLD(full_res_df):
 	min_ld = full_res_df[full_res_df.LD == full_res_df.LD.min()]
