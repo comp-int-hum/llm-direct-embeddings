@@ -1,8 +1,8 @@
 import torch
-import jellyfish
 import logging
 import json
 import argparse
+import gzip
 
 from utility.pred_utils import LAYER_LOOKUP
 
@@ -16,9 +16,8 @@ logging.basicConfig(level='INFO', format=log_format)
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
-	parser.add_argument("chunk_embeds", nargs="+", help="Collection of embed files")
-	parser.add_argument("--pred_out", dest="outfile", nargs="+",  help="Outfile of predictions")
-	parser.add_argument("--chunk", nargs="+")
+	parser.add_argument("chunk_embed", help="Samples from chunk embedded")
+	parser.add_argument("pred_out", help="Outfile of predictions")
 	parser.add_argument("--model_name", dest="model_name", help="A model name of a bertlike model")
 	parser.add_argument("--layers", nargs="+", dest="layers", help="Layers")
 
@@ -29,41 +28,30 @@ if __name__ == "__main__":
 	if args.model_name in ["google/canine-c", "general_character_bert","google/canine-s"]:
 		args.layers = ["last"]
 
-	for embeds,sample,outfile in zip(args.chunk_embeds, args.chunk, args.outfile):
-		embeds = torch.load(embeds)
-		with open(sample, "r") as s_in:
-			sample = json.load(s_in)
 
-		ns_ground_ld = jellyfish.levenshtein_distance(sample["Ground"], sample["NS"])
+	with gzip.open(args.chunk_embed, "rt") as embed_in, gzip.open(args.pred_out, "wt") as json_out:
+		for e_l in embed_in:
+			embeds = json.loads(e_l)
 
-		out_d = {"NS_Ground_LD": ns_ground_ld, "Layers":{l:{} for l in args.layers}}
+			out_l = []
+			for annotation in embeds["embeds"]:
+				final_pred = {l:{"alt":None, "CD": 0, "LD":1000, "acc":False} for l in args.layers}
+				alt_preds = {}
+				for alt in annotation["alts"]:
+					alt_preds[alt["token"]] = {l:{} for l in args.layers}
+					for layer in args.layers:
+						#meaning pieces "under investigation"
+						
+						pred = {"LD":alt["LD"], "CD":torch.cosine_similarity(torch.Tensor(annotation["observed"]["embed"][layer]).mean(dim=0).reshape(1,-1), torch.Tensor(alt["embed"][layer]).mean(dim=0).reshape(1,-1)).numpy().tolist()[0]}
+						alt_preds[alt["token"]][layer] = pred
+						if pred["CD"] > final_pred[layer]["CD"] and pred["LD"] <= final_pred[layer]["LD"]:
+							final_pred[layer] = pred
+							final_pred[layer]["alt"] = alt["token"]
+							final_pred[layer]["acc"] = True if alt["token"].strip() == annotation["standard"]["token"].strip() else False
 
-		for layer in args.layers:
+				out_l.append({"preds": alt_preds, "final_pred":final_pred, "observed":annotation["observed"]["token"], "standard": annotation["standard"]["token"]})
 
-			#meaning pieces "under investigation"
-			ns_ground_cd = torch.cosine_similarity(embeds[sample["Ground"]][layer].mean(dim=0).reshape(1,-1), embeds[sample["NS"]][layer].mean(dim=0).reshape(1,-1)).numpy().tolist()[0]
 
-			layer_l = []
-
-			final_prediction = {"Alt":None, "CD": 0, "LD":1000}
-
-			for alt, LD in sample["Alts"].items():
-				pred = {"Alt":alt, "LD":LD, "CD":torch.cosine_similarity(embeds[sample["NS"]][layer].mean(dim=0).reshape(1,-1), embeds[alt][layer].mean(dim=0).reshape(1,-1)).numpy().tolist()[0]}
-				layer_l.append(pred)
-				if pred["CD"] > final_prediction["CD"] and pred["LD"] <= final_prediction["LD"]:
-					final_prediction = pred
-
-			acc = True if final_prediction["Alt"].lower().strip() == sample["Ground"].lower().strip() else False
-
-			out_d["Layers"][layer] = {"Preds": layer_l, "Final_Pred":final_prediction, "NS_Ground_CD": ns_ground_cd, "Acc":acc}
-
-			logging.info("Layer: %s", layer)
-			logging.info("Ground: %s", sample["Ground"])
-			logging.info("Pred: %s", final_prediction["Alt"])
-			logging.info("PredCD: %f", final_prediction["CD"])
-			logging.info("PredLD: %f", final_prediction["LD"])
-			logging.info("Acc %s" str(acc))
-		with open(outfile,"w") as p_out:
-			json.dump(out_d,p_out)
+			json_out.write(json.dumps(out_l) + "\n")
 
 

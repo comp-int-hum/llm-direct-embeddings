@@ -4,6 +4,7 @@ import gzip
 import json
 import tarfile
 from bs4 import BeautifulSoup
+from utility.corpus_utils import loadBrownCorpusTree
 
 
 def loadCorpus(fname, sent_sep=True):
@@ -62,7 +63,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input_file", dest="input_file",  help="Input file")
     parser.add_argument("--output_file", dest="output_file",  help="Output file")
+    parser.add_argument("--max_ld", dest="max_ld", type=int, default=3,  help="Max LD")
     args, rest = parser.parse_known_args()
+
+    brown_tree = loadBrownCorpusTree()
     
     with gzip.open(args.output_file, "wt") as ofd:
         for item in loadCorpus(args.input_file):
@@ -70,7 +74,7 @@ if __name__ == "__main__":
             for sentence_match in re.finditer(r"(.+?(?:(?:(?:\.|\?|\!)\s+)|$))", item["text"], re.S):
                 sentence = sentence_match.group(1)
                 sentence_item = {
-                    "text" : sentence,
+                    "text" : sentence.lower(),
                     "annotations" : []
                 }
                 new_offset = offset + len(sentence)
@@ -87,9 +91,10 @@ if __name__ == "__main__":
                             {
                                 "start" : annotation["start"] - offset,
                                 "end" : annotation["end"] - offset,
-                                "observed" : annotation["observed"],
-                                "standard" : annotation["standard"],
-                                "ocr" : annotation["ocr"]                                
+                                "observed" : annotation["observed"].lower(),
+                                "standard" : annotation["standard"].lower(),
+                                "ocr" : annotation["ocr"],
+                                "alts": {a[1]: a[0] for a in brown_tree.find(annotation["observed"].lower(), args.max_ld)}                                
                             }
                         )
                 offset = new_offset
