@@ -112,13 +112,11 @@ env.Decider("timestamp-newer")
 
 
 
-#num samples (max)
-#handle null cases in actual scripts
-
-#num_chunks
-#so that would be num files
-#but possibly a file would have one entry, or more
-
+#blowing up the depenedency graph -- going to have to go back to chunk files rather than logically collected chunks of individual files
+#still good to have pushed the layers stuff out
+#should simplify loading
+#so chunk script, with files = nchunks as out, corpus as in
+#iterate chunks
 
 
 
@@ -168,41 +166,3 @@ for dataset_name in env["DATASETS"]:
             pred_names = [os.path.join("work",dataset_name[0],m_name,"preds",os.path.splitext(os.path.split(c.get_path())[-1])[0]+"_preds.json") for c in chunk]
             pred_results[m_name].append(env.Pred(pred_names, embed, MODEL_NAME=m_name, CHUNK=chunk, LAYERS=env["LAYERS"]))
 
-            
-
-
-
-"""
-
-
-    s_chunks = ["work/"+dataset_name+"/samplec"+str(x)+".csv" for x in range(0,env["NUM_CHUNKS"])]
-    samples = env.LoadSamples(s_chunks, [], [], DATASET_NAME = dataset_name, CORPUS_DIR = env["CORPORA_DIR"], NUM_CHUNKS = env["NUM_CHUNKS"])
-
-    for model_name in env["MODELS"]:
-        if model_name in ["bert-large-uncased", "bert-base-uncased", "roberta-base", "roberta-large"]:
-            embeddings = 
-
-
-            for layer in env["LAYERS"]:
-                r = []
-                for i,schunk in enumerate(samples):
-
-                    r.append(env.RunBertlikePred("work/${DATASET_NAME}/${MODEL_NAME}/${LAYERS}/pred"+str(i)+".gz", schunk, DATASET_NAME=dataset_name, MODEL_NAME=model_name, LAYERS=layer))
-                    r2.append(r)
-                res.append(env.EvalResults("work/${DATASET_NAME}/${MODEL_NAME}/${LAYERS}/results.csv", r, DATASET_NAME=dataset_name, MODEL_NAME=model_name, LAYERS=layer))
-        elif model_name == "general_character_bert":
-            r = []
-            for i, schunk in enumerate(samples):
-                r.append(env.RunCBERTPred("work/${DATASET_NAME}/${MODEL_NAME}/pred"+str(i)+".gz", schunk, DATASET_NAME=dataset_name, MODEL_NAME=model_name))
-                r2.append(r)
-            res.append(env.EvalResultsChar("work/${DATASET_NAME}/${MODEL_NAME}/results.csv", r, DATASET_NAME=dataset_name, MODEL_NAME=model_name))
-        elif model_name in ["google/canine-c", "google/canine-s"]:
-            r = []
-            for layer in env["LAYERS"]:
-                for i, schunk in enumerate(samples):
-                    r.append(env.RunCaninePred("work/${DATASET_NAME}/${MODEL_NAME}/${LAYERS}/pred"+str(i)+".gz", schunk, DATASET_NAME=dataset_name, MODEL_NAME=model_name, LAYERS=layer))
-                    r2.append(r)
-                res.append(env.EvalResultsChar("work/${DATASET_NAME}/${MODEL_NAME}/${LAYERS}/results.csv", r, DATASET_NAME=dataset_name, MODEL_NAME=model_name, LAYERS=layer))
-
-
-"""
