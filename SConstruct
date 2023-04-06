@@ -39,7 +39,8 @@ vars.AddVariables(
     #("MODELS", "", ["bert-base-uncased", "bert-large-uncased", "roberta-base", "roberta-large", "general_character_bert", "google/canine-c", "google/canine-s"]),
     #("LAYERS","", [[-1,-2,-3,-4], [-1], [1], [2], [3], [1,2,3], [6]]),
     ("LAYERS","",["last","last_four", "first_three", "middle"]),
-    ("DATASETS", "", [["fce-released-dataset", 3670], ["mycorpus",1324]]), #,"fce-released-dataset"]),
+    ("DATA_PATH", "", "data"),
+    ("DATASETS", "", ["fce-released-dataset", "mycorpus"]),
     ("CORPORA_DIR","","corpora"),
     ("RANDOM_STATE","", 10),
     ("NUM_CHUNKS","",5),
@@ -54,14 +55,13 @@ env = Environment(variables=vars, ENV=os.environ, TARFLAGS="-c -z", TARSUFFIX=".
 env.AddBuilder(
     "LoadSamples",
     "scripts/load_samples.py",
-    "${SOURCES} --corpus_name ${CORPUS_NAME} --outfile ${TARGETS[0]}",
+    "--input_file ${SOURCES[0]} --output_file ${TARGETS[0]}",
 )
 
 env.AddBuilder(
     "SplitToChunks",
     "scripts/split_sample_chunks.py",
-    "${SOURCES[0]} ${TARGETS} --chunk_indices ${CHUNK_INDICES}"
-
+    "--input_file ${SOURCES[0]} --output_files ${TARGETS}"
     )
 
 env.AddBuilder(
@@ -89,9 +89,6 @@ env.AddBuilder(
     "${SOURCES} --pred_out ${TARGETS} --chunk ${CHUNK} --model_name ${MODEL_NAME} --layers ${LAYERS}"
 
     )
-
-
-
 
 env.AddBuilder(
     "EvalResults",
@@ -127,9 +124,18 @@ env.Decider("timestamp-newer")
 
 #chunk into X pieces for use with -j --jobs (so can implicitly multicore over x processors)
 
-
-
 for dataset_name in env["DATASETS"]:
+    samples = env.LoadSamples(
+        "work/${DATASET_NAME}.json.gz",
+        "${DATA_PATH}/${DATASET_NAME}.tgz",
+        DATASET_NAME=dataset_name
+    )
+    chunks = env.SplitToChunks(
+        ["work/${{DATASET_NAME}}_chunk_{}.json.gz".format(i) for i in range(env["NUM_CHUNKS"])],
+        samples,
+        DATASET_NAME=dataset_name
+    )
+    continue
     if dataset_name[0] == "fce-released-dataset":
         d_samples_full = env.LoadSamples(os.path.join("work","fce-released-dataset","full.csv"),[f for f in glob.glob(env["CORPORA_DIR"]+"/fce-released-dataset"+"/dataset"+"/*/*.xml", recursive = True)], CORPUS_NAME=dataset_name[0])
     elif dataset_name[0] == "mycorpus":
