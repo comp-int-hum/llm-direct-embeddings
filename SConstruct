@@ -134,7 +134,6 @@ for dataset_name in env["DATASETS"]:
         DATASET_NAME=dataset_name
     )
 
-    chunks = [chunks[0]]
     
 
     chunk_embed_dict = defaultdict(list)
