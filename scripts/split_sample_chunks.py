@@ -1,28 +1,27 @@
 import argparse
-import pandas as pd
-import os.path
-import numpy as np
-from utility.corpus_utils import loadBrownCorpusTree
 import json
+import gzip
+import math
 
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("corpus", help="Full CSV corpus")
-    parser.add_argument("outfiles", nargs="+",  help="Outfile names for chunk")
-    parser.add_argument("--chunk_indices", nargs="+")
-    parser.add_argument("--max_ld", default=3)
-
+    parser.add_argument("input_file", help="Input file")
+    parser.add_argument("output_files", default=[], nargs="+",  help="Output files")
     args, rest = parser.parse_known_args()
 
-    bktree = loadBrownCorpusTree()
+    items = []
+    with gzip.open(args.input_file, "rt") as ifd:
+        for line in ifd:
+            items.append(line)
 
-    c_df = pd.read_csv(args.corpus, index_col=0)
-    for t,of in zip(c_df.iloc[args.chunk_indices].itertuples(), args.outfiles):
+    total = len(items)
+    num_chunks = len(args.output_files)
+    max_per_chunk = math.ceil(total / num_chunks)
 
-    	js = json.loads(pd.DataFrame([t]).to_json(force_ascii=False, orient="index"))["0"]
-    	alts = bktree.find(js["NS"], args.max_ld)
-    	js["Alts"] = {a[1]: a[0] for a in alts}
-    	with open(of,"w") as out:
-    		json.dump(js, out)
+    for i, fname in enumerate(args.output_files):
+        with gzip.open(fname, "wt") as ofd:
+            for line in items[i * max_per_chunk : (i + 1) * max_per_chunk]:
+                ofd.write(line)
+
