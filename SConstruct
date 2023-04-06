@@ -34,16 +34,16 @@ import pickle
 vars = Variables("custom.py")
 vars.AddVariables(
     ("OUTPUT_WIDTH", "", 5000),
-    ("MODELS","",["google/canine-c", "bert-large-uncased"]),
+    ("MODELS","",["google/canine-c", "bert-large-uncased", "roberta-large"]),
     #("MODELS","",["bert-large-uncased", "google/canine-c", "roberta-large", "general_character_bert"]),
     #("MODELS", "", ["bert-base-uncased", "bert-large-uncased", "roberta-base", "roberta-large", "general_character_bert", "google/canine-c", "google/canine-s"]),
     #("LAYERS","", [[-1,-2,-3,-4], [-1], [1], [2], [3], [1,2,3], [6]]),
-    ("LAYERS","",["last","last_four"]),#, "first_three", "middle"]),
+    ("LAYERS","",["last","last_four", "first_three", "middle"]),
     ("DATA_PATH", "", "corpora"),
     ("DATASETS", "", ["fce-released-dataset"]),#, "mycorpus"]),
     ("CORPORA_DIR","","corpora"),
     ("RANDOM_STATE","", 10),
-    ("NUM_CHUNKS","",2000),
+    ("NUM_CHUNKS","",5),
     ("MAX_LD","",3)
 )
 
