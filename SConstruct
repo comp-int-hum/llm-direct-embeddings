@@ -36,8 +36,8 @@ vars.AddVariables(
     ("OUTPUT_WIDTH", "", 5000),
     ("MODELS","",["google/canine-c", "bert-large-uncased", "roberta-large"]),
     ("LAYERS","",["last","last_four", "first_three", "middle"]),
-    ("DATA_PATH", "", "data"),
-    ("DATASETS", "", ["fce-released-dataset", "mycorpus"]),
+    ("DATA_PATH", "", "corpora"),
+    ("DATASETS", "", ["fce-released-dataset"]),#, "mycorpus"]),
     ("CORPORA_DIR","","corpora"),
     ("RANDOM_STATE","", 10),
     ("NUM_CHUNKS","",50),
@@ -131,6 +131,7 @@ for dataset_name in env["DATASETS"]:
         samples,
         DATASET_NAME=dataset_name
     )
+
 
     chunk_embed_dict = defaultdict(list)
     for c_i,chunk in enumerate(chunks):

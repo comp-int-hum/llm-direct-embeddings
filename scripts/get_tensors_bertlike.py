@@ -13,6 +13,8 @@ import json
 import tarfile
 
 
+
+
 log_format = "%(asctime)s::%(filename)s::%(message)s"
 
 logging.basicConfig(level='INFO', format=log_format)
@@ -25,6 +27,7 @@ def get_hidden_states(encoded, token_ids_word, model, layers, layer_names, devic
         logging.info("Processing sequence of shape %s", encoded["input_ids"].shape)
         output = model(**{k : v.to(device) for k, v in encoded.items()})
     states = output.hidden_states
+
     instance_layers = {}
     for instance_num in range(encoded["input_ids"].shape[0]):
         instance_layers[instance_num] = {}
@@ -33,6 +36,7 @@ def get_hidden_states(encoded, token_ids_word, model, layers, layer_names, devic
             word_tokens_output = output[token_ids_word[instance_num]]
             instance_layers[instance_num][layer_name] = word_tokens_output.tolist()
     return instance_layers
+
 
 def insert_alt_id_at_mask(alt_id, encoded, mask_index):
     len_alt_encoded = len(alt_id)
@@ -59,6 +63,7 @@ if __name__ == "__main__":
     model = AutoModel.from_pretrained(args.model_name, output_hidden_states=True)
     model.to(device)
     layers = [LAYER_LOOKUP[l] for l in args.layers]
+
     logging.info("Model loaded.")
     
     with gzip.open(args.chunk_json,"rt") as chunk_in, gzip.open(args.embeddings_out, "wt") as chunk_out:
@@ -76,6 +81,7 @@ if __name__ == "__main__":
                     annotation,
                     mask_token=a_t.mask_token
                 ) #going to use mask as a place to insert candidates
+
 
                 #initial encoding to locate masks after wordpiece tokenization
                 encoded = a_t.encode(masked_sample, add_special_tokens=False)
@@ -160,4 +166,5 @@ if __name__ == "__main__":
                 }                                 
 
             chunk_out.write(json.dumps(json_sample) + "\n")
+
 

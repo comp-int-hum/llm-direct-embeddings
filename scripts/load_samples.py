@@ -5,7 +5,9 @@ import json
 import tarfile
 from bs4 import BeautifulSoup
 from utility.corpus_utils import loadBrownCorpusTree
+
 from nltk.corpus import wordnet as wn
+
 
 def loadCorpus(fname, sent_sep=True):
     with tarfile.open(fname, "r") as tifd:
@@ -99,7 +101,9 @@ if __name__ == "__main__":
                                 "observed" : annotation["observed"].lower(),
                                 "standard" : annotation["standard"].lower(),
                                 "ocr" : annotation["ocr"],
+
                                 "alts": {a[1]: a[0] for a in brown_tree.find(annotation["observed"].lower(), args.max_ld) if len(wn.synsets(a[1])) > 0}                     
+
                             }
                         )
                 offset = new_offset

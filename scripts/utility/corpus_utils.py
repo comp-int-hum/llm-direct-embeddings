@@ -7,6 +7,8 @@ from nltk.corpus import brown
 import pybktree
 import jellyfish
 
+from collections import Counter
+
 from bs4 import BeautifulSoup
 
 def loadJsonCorpusDf(corpus_in, sent_sep=True):
@@ -75,8 +77,10 @@ def maskSample(text, annotation, mask_token = "[MASK]"):
 
 
 def loadBrownCorpusTree():
-	corpus_dictionary = set([word.lower() for word in brown.words() if word.isalpha()])
+	corpus_dictionary = Counter([word.lower() for word in brown.words() if word.isalpha() and not word[0].isupper()])
+	corpus_dictionary = [w for w,c in corpus_dictionary.items() if c > 1]
 	return pybktree.BKTree(jellyfish.levenshtein_distance, corpus_dictionary)
+
 
 """
 def maskSample(row, f_t=None, max_tokens = 512, truncation_length=250):
