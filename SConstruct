@@ -42,7 +42,8 @@ vars.AddVariables(
     ("RANDOM_STATE","", 10),
     ("NUM_CHUNKS","",50),
     ("MAX_LD","",3),
-    ("DEVICE", "", "cuda") # cuda or cuda
+    ("DEVICE", "", "cpu"), # cpu or cuda
+    ("TEST_SAMPLE","",False)
 )
 
 
@@ -53,7 +54,7 @@ env = Environment(variables=vars, ENV=os.environ, TARFLAGS="-c -z", TARSUFFIX=".
 env.AddBuilder(
     "LoadSamples",
     "scripts/load_samples.py",
-    "--input_file ${SOURCES[0]} --output_file ${TARGETS[0]} --max_ld ${MAX_LD}",
+    "--input_file ${SOURCES[0]} --output_file ${TARGETS[0]} --max_ld ${MAX_LD} --test_sample ${TEST_SAMPLE}",
 )
 
 env.AddBuilder(
@@ -72,7 +73,7 @@ env.AddBuilder(
 env.AddBuilder(
     "EmbedCanine",
     "scripts/get_tensors_canine.py",
-    "${SOURCES[0]} ${TARGETS[0]} --model ${MODEL_NAME} --layers ${LAYERS}"
+    "${SOURCES[0]} ${TARGETS[0]} --model ${MODEL_NAME} --layers ${LAYERS} --device ${DEVICE}"
     )
 
 env.AddBuilder(
@@ -133,6 +134,7 @@ for dataset_name in env["DATASETS"]:
     )
 
 
+
     chunk_embed_dict = defaultdict(list)
     for c_i,chunk in enumerate(chunks):
         for model_name in env["MODELS"]:
@@ -140,11 +142,10 @@ for dataset_name in env["DATASETS"]:
                 chunk_embed_dict[model_name].append(env.EmbedBertlike("work/${DATASET_NAME}/${MODEL_NAME}/embeds/"+"chunk_embed"+str(c_i)+".json.gz", chunk, MODEL_NAME=model_name, LAYERS=env["LAYERS"], DATASET_NAME=dataset_name))
 
             elif model_name in ["google/canine-c", "google/canine-s"]:
-                chunk_embed_dict[model_name].append(env.EmbedCanine("work/${DATASET_NAME}/${MODEL_NAME}/embeds/"+"chunk_embed"+str(c_i)+".json.gz",chunk,MODEL_NAME=model_name,LAYERS=["last"], DATASET_NAME=dataset_name))
+                chunk_embed_dict[model_name].append(env.EmbedCanine("work/${DATASET_NAME}/${MODEL_NAME}/embeds/"+"chunk_embed"+str(c_i)+".json.gz",chunk,MODEL_NAME=model_name, LAYERS=["last"], DATASET_NAME=dataset_name))
             #elif model_name == "general_character_bert":
                 #chunk_embed_dict[model_name].append(env.EmbedCBert(embed_names,chunk,MODEL_NAME=model_name))
     
-    continue
     pred_results = defaultdict(list)
     for m_name, embeds in chunk_embed_dict.items():
         for e_i,embed in enumerate(embeds):

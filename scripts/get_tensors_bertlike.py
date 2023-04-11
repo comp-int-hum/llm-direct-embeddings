@@ -64,12 +64,13 @@ if __name__ == "__main__":
     model.to(device)
     layers = [LAYER_LOOKUP[l] for l in args.layers]
 
-    logging.info("Model loaded.")
+    logging.info("Model loaded")
     
     with gzip.open(args.chunk_json,"rt") as chunk_in, gzip.open(args.embeddings_out, "wt") as chunk_out:
         for line in chunk_in:
             json_sample = json.loads(line)
-            logging.info("Processing sentence '%s'", json_sample["text"])            
+            logging.info("Processing sentence '%s'", json_sample["text"]) 
+
             for i, annotation in enumerate(json_sample["annotations"]):
                 logging.info(
                     "\tProcessing observed token '%s' with standard form '%s'",
@@ -86,7 +87,6 @@ if __name__ == "__main__":
                 #initial encoding to locate masks after wordpiece tokenization
                 encoded = a_t.encode(masked_sample, add_special_tokens=False)
                 mask_index = encoded.index(a_t.mask_token_id)
-                sample_embeds = {"embeds":[]}
 
                 inputs = {
                     "input_ids" : [],
@@ -129,7 +129,10 @@ if __name__ == "__main__":
                 index_ranges.append(ground_index_range)
                 inputs["input_ids"].append(ground_prepared["input_ids"].tolist())
                 inputs["attention_mask"].append(ground_prepared["attention_mask"].tolist())
+
+                lds = []
                 for alt in annotation["alts"]:
+                    lds.append(annotation["alts"][alt])
                     alt_encoded = a_t.encode(alt, add_special_tokens=False)
                     alt_inserted_ids, index_range = insert_alt_id_at_mask(alt_encoded, encoded, mask_index)
                     alt_prepared = a_t.prepare_for_model(ids=alt_inserted_ids, return_tensors="pt", prepend_batch_axis=False)
@@ -156,12 +159,15 @@ if __name__ == "__main__":
                     device
                 )
                 json_sample["annotations"][i]["observed_embeddings"] = outputs[0]
-                json_sample["annotations"][i]["standard_embeddings"] = outputs[0]
+                json_sample["annotations"][i]["standard_embeddings"] = outputs[1] #assume needed change
+
                 
                 json_sample["annotations"][i]["alts"] = {
-                    alt : emb for alt, emb in zip(
+                    alt : {"embed": emb, "LD": ld} for alt, emb, ld in zip(
                         json_sample["annotations"][i]["alts"],
-                        [outputs[j] for j in range(len(outputs) - 2)]
+                        #[outputs[j] for j in range(len(outputs) - 2)] #same
+                        [outputs[j] for j in range(2, len(outputs))],
+                        lds
                     )
                 }                                 
 
