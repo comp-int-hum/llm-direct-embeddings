@@ -35,16 +35,14 @@ vars = Variables("custom.py")
 vars.AddVariables(
     ("OUTPUT_WIDTH", "", 5000),
     ("MODELS","",["google/canine-c", "bert-large-uncased", "roberta-large"]),
-    #("MODELS","",["bert-large-uncased", "google/canine-c", "roberta-large", "general_character_bert"]),
-    #("MODELS", "", ["bert-base-uncased", "bert-large-uncased", "roberta-base", "roberta-large", "general_character_bert", "google/canine-c", "google/canine-s"]),
-    #("LAYERS","", [[-1,-2,-3,-4], [-1], [1], [2], [3], [1,2,3], [6]]),
     ("LAYERS","",["last","last_four", "first_three", "middle"]),
     ("DATA_PATH", "", "corpora"),
     ("DATASETS", "", ["fce-released-dataset"]),#, "mycorpus"]),
     ("CORPORA_DIR","","corpora"),
     ("RANDOM_STATE","", 10),
-    ("NUM_CHUNKS","",5),
-    ("MAX_LD","",3)
+    ("NUM_CHUNKS","",50),
+    ("MAX_LD","",3),
+    ("DEVICE", "", "cuda") # cuda or cuda
 )
 
 
@@ -67,7 +65,7 @@ env.AddBuilder(
 env.AddBuilder(
     "EmbedBertlike",
     "scripts/get_tensors_bertlike.py",
-    "${SOURCES[0]} ${TARGETS[0]} --model ${MODEL_NAME} --layers ${LAYERS}"
+    "${SOURCES[0]} ${TARGETS[0]} --model ${MODEL_NAME} --layers ${LAYERS} --device ${DEVICE}"
 )
 
 
@@ -134,7 +132,6 @@ for dataset_name in env["DATASETS"]:
         DATASET_NAME=dataset_name
     )
 
-    
 
     chunk_embed_dict = defaultdict(list)
     for c_i,chunk in enumerate(chunks):
@@ -147,7 +144,7 @@ for dataset_name in env["DATASETS"]:
             #elif model_name == "general_character_bert":
                 #chunk_embed_dict[model_name].append(env.EmbedCBert(embed_names,chunk,MODEL_NAME=model_name))
     
-
+    continue
     pred_results = defaultdict(list)
     for m_name, embeds in chunk_embed_dict.items():
         for e_i,embed in enumerate(embeds):
