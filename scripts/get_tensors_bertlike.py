@@ -13,7 +13,6 @@ import json
 import tarfile
 
 
-
 log_format = "%(asctime)s::%(filename)s::%(message)s"
 
 logging.basicConfig(level='INFO', format=log_format)
@@ -21,24 +20,18 @@ logging.basicConfig(level='INFO', format=log_format)
 
 #combine embeddings? Train over known ground and created composites?
 
-def get_hidden_states(encoded, token_ids_word, model, layers, layer_names):
+def get_hidden_states(encoded, token_ids_word, model, layers, layer_names, device):
     with torch.no_grad():
         logging.info("Processing sequence of shape %s", encoded["input_ids"].shape)
-        output = model(**encoded)
+        output = model(**{k : v.to(device) for k, v in encoded.items()})
     states = output.hidden_states
     instance_layers = {}
-    #print(100)
-    #layer_d = {}
     for instance_num in range(encoded["input_ids"].shape[0]):
         instance_layers[instance_num] = {}
         for layer_set, layer_name in zip(layers, layer_names):
             output = torch.stack([states[i][instance_num] for i in layer_set]).sum(0).squeeze()
-            #print([x.shape for x in states])
-            #print(output.shape)
-            #print(token_ids_word)
             word_tokens_output = output[token_ids_word[instance_num]]
             instance_layers[instance_num][layer_name] = word_tokens_output.tolist()
-            #layer_d[layer_name] = word_tokens_output.tolist()
     return instance_layers
 
 def insert_alt_id_at_mask(alt_id, encoded, mask_index):
@@ -56,13 +49,15 @@ if __name__ == "__main__":
     parser.add_argument("--maxlen", default=512,  help="Max unit (token) len for models")
     parser.add_argument("--model", dest="model_name", help="A model name of a bertlike model")
     parser.add_argument("--layers", nargs="+", default=["last"], dest="layers")
-
+    parser.add_argument("--device", default="cpu", choices=["cpu", "cuda"])
     args, rest = parser.parse_known_args()
 
+    device = torch.device(args.device)
 
     logging.info("Loading model...")
     a_t = AutoTokenizer.from_pretrained(args.model_name)
     model = AutoModel.from_pretrained(args.model_name, output_hidden_states=True)
+    model.to(device)
     layers = [LAYER_LOOKUP[l] for l in args.layers]
     logging.info("Model loaded.")
     
@@ -151,11 +146,18 @@ if __name__ == "__main__":
                     index_ranges,
                     model,
                     layers,
-                    args.layers
+                    args.layers,
+                    device
                 )
-                #sys.exit()
-                #sample_embeds["embeds"].append(out_d)
-
+                json_sample["annotations"][i]["observed_embeddings"] = outputs[0]
+                json_sample["annotations"][i]["standard_embeddings"] = outputs[0]
+                
+                json_sample["annotations"][i]["alts"] = {
+                    alt : emb for alt, emb in zip(
+                        json_sample["annotations"][i]["alts"],
+                        [outputs[j] for j in range(len(outputs) - 2)]
+                    )
+                }                                 
 
             chunk_out.write(json.dumps(json_sample) + "\n")
 

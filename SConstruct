@@ -40,8 +40,9 @@ vars.AddVariables(
     ("DATASETS", "", ["fce-released-dataset", "mycorpus"]),
     ("CORPORA_DIR","","corpora"),
     ("RANDOM_STATE","", 10),
-    ("NUM_CHUNKS","",500),
-    ("MAX_LD","",3)
+    ("NUM_CHUNKS","",50),
+    ("MAX_LD","",3),
+    ("DEVICE", "", "cuda") # cuda or cuda
 )
 
 
@@ -64,7 +65,7 @@ env.AddBuilder(
 env.AddBuilder(
     "EmbedBertlike",
     "scripts/get_tensors_bertlike.py",
-    "${SOURCES[0]} ${TARGETS[0]} --model ${MODEL_NAME} --layers ${LAYERS}"
+    "${SOURCES[0]} ${TARGETS[0]} --model ${MODEL_NAME} --layers ${LAYERS} --device ${DEVICE}"
 )
 
 

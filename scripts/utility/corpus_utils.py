@@ -69,9 +69,9 @@ def loadFCECorpusDf(dataset, allowed_error_types = ["S","SA","SX"]):
 	return pd.DataFrame.from_records(initial_res)
 
 
-def maskSample(row, mask_token = "[MASK]"):
-	masked_sample = row["sample"][0:row["i"]] + mask_token +  row["sample"][row["i"]+len(row["NS"]):]
-	return masked_sample
+def maskSample(text, annotation, mask_token = "[MASK]"):
+        masked_sample = text[0:annotation["start"]] + mask_token +  text[annotation["end"]:]
+        return masked_sample
 
 
 def loadBrownCorpusTree():
