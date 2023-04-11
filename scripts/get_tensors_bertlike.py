@@ -8,7 +8,9 @@ from transformers import AutoModel, AutoTokenizer
 import os
 
 import logging
+import gzip
 import json
+import tarfile
 
 
 
@@ -21,14 +23,23 @@ logging.basicConfig(level='INFO', format=log_format)
 
 def get_hidden_states(encoded, token_ids_word, model, layers, layer_names):
     with torch.no_grad():
+        logging.info("Processing sequence of shape %s", encoded["input_ids"].shape)
         output = model(**encoded)
     states = output.hidden_states
-    layer_d = {}
-    for layer_set, layer_name in zip(layers,layer_names):
-        output = torch.stack([states[i] for i in layer_set]).sum(0).squeeze()
-        word_tokens_output = output[token_ids_word]
-        layer_d[layer_name] = word_tokens_output
-    return layer_d
+    instance_layers = {}
+    #print(100)
+    #layer_d = {}
+    for instance_num in range(encoded["input_ids"].shape[0]):
+        instance_layers[instance_num] = {}
+        for layer_set, layer_name in zip(layers, layer_names):
+            output = torch.stack([states[i][instance_num] for i in layer_set]).sum(0).squeeze()
+            #print([x.shape for x in states])
+            #print(output.shape)
+            #print(token_ids_word)
+            word_tokens_output = output[token_ids_word[instance_num]]
+            instance_layers[instance_num][layer_name] = word_tokens_output.tolist()
+            #layer_d[layer_name] = word_tokens_output.tolist()
+    return instance_layers
 
 def insert_alt_id_at_mask(alt_id, encoded, mask_index):
     len_alt_encoded = len(alt_id)
@@ -40,53 +51,111 @@ def insert_alt_id_at_mask(alt_id, encoded, mask_index):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("chunk_json", nargs="+", help="List of CSV sample chunks")
+    parser.add_argument("chunk_json", help="Gzed chunk")
+    parser.add_argument("embeddings_out", help="Chunk embedding name")
     parser.add_argument("--maxlen", default=512,  help="Max unit (token) len for models")
-    parser.add_argument("--embeddings_out", nargs="+", dest="outfiles",  help="Embedding names")
     parser.add_argument("--model", dest="model_name", help="A model name of a bertlike model")
     parser.add_argument("--layers", nargs="+", default=["last"], dest="layers")
 
     args, rest = parser.parse_known_args()
 
 
-    
+    logging.info("Loading model...")
     a_t = AutoTokenizer.from_pretrained(args.model_name)
     model = AutoModel.from_pretrained(args.model_name, output_hidden_states=True)
     layers = [LAYER_LOOKUP[l] for l in args.layers]
+    logging.info("Model loaded.")
+    
+    with gzip.open(args.chunk_json,"rt") as chunk_in, gzip.open(args.embeddings_out, "wt") as chunk_out:
+        for line in chunk_in:
+            json_sample = json.loads(line)
+            logging.info("Processing sentence '%s'", json_sample["text"])            
+            for i, annotation in enumerate(json_sample["annotations"]):
+                logging.info(
+                    "\tProcessing observed token '%s' with standard form '%s'",
+                    annotation["observed"],
+                    annotation["standard"]
+                )
+                masked_sample = maskSample(
+                    json_sample["text"],
+                    annotation,
+                    mask_token=a_t.mask_token
+                ) #going to use mask as a place to insert candidates
 
-    for in_samp,out_embed in zip(args.chunk_json, args.outfiles):
-        with open(in_samp, "r") as j_in:
-            json_sample = json.load(j_in)
+                #initial encoding to locate masks after wordpiece tokenization
+                encoded = a_t.encode(masked_sample, add_special_tokens=False)
+                mask_index = encoded.index(a_t.mask_token_id)
+                sample_embeds = {"embeds":[]}
 
-        masked_sample = maskSample(json_sample, mask_token = a_t.mask_token) #going to use mask as a place to insert candidates
+                inputs = {
+                    "input_ids" : [],
+                    "attention_mask" : []
+                }
+                index_ranges = []
+
+                orig_ns_encoded = a_t.encode(
+                    annotation["observed"],
+                    add_special_tokens=False
+                )
+                orig_ns_inserted_ids, orig_index_range = insert_alt_id_at_mask(
+                    orig_ns_encoded,
+                    encoded,
+                    mask_index
+                )
+                orig_ns_prepared = a_t.prepare_for_model(
+                    ids=orig_ns_inserted_ids,
+                    return_tensors="pt",
+                    prepend_batch_axis=False
+                )
+                index_ranges.append(orig_index_range)
+                inputs["input_ids"].append(orig_ns_prepared["input_ids"].tolist())
+                inputs["attention_mask"].append(orig_ns_prepared["attention_mask"].tolist())
+                
+                ground_encoded = a_t.encode(
+                    annotation["standard"],
+                    add_special_tokens=False
+                )
+                ground_inserted_ids, ground_index_range = insert_alt_id_at_mask(
+                    ground_encoded,
+                    encoded,
+                    mask_index
+                )
+                ground_prepared = a_t.prepare_for_model(
+                    ids=ground_inserted_ids,
+                    return_tensors="pt",
+                    prepend_batch_axis=False
+                )
+                index_ranges.append(ground_index_range)
+                inputs["input_ids"].append(ground_prepared["input_ids"].tolist())
+                inputs["attention_mask"].append(ground_prepared["attention_mask"].tolist())
+                for alt in annotation["alts"]:
+                    alt_encoded = a_t.encode(alt, add_special_tokens=False)
+                    alt_inserted_ids, index_range = insert_alt_id_at_mask(alt_encoded, encoded, mask_index)
+                    alt_prepared = a_t.prepare_for_model(ids=alt_inserted_ids, return_tensors="pt", prepend_batch_axis=False)
+                    index_ranges.append(index_range)
+                    inputs["input_ids"].append(alt_prepared["input_ids"].tolist())
+                    inputs["attention_mask"].append(alt_prepared["attention_mask"].tolist())
+
+                max_len = max([len(x) for x in inputs["input_ids"]])
+                inputs["input_ids"] = torch.stack(
+                    [torch.tensor(x + [0 for _ in range(max_len - len(x))]) for x in inputs["input_ids"]],
+                    0
+                )
+                max_len = max([len(x) for x in inputs["attention_mask"]])
+                inputs["attention_mask"] = torch.stack(
+                    [torch.tensor(x + [0 for _ in range(max_len - len(x))]) for x in inputs["attention_mask"]],
+                    0
+                )
+                outputs = get_hidden_states(
+                    inputs,
+                    index_ranges,
+                    model,
+                    layers,
+                    args.layers
+                )
+                #sys.exit()
+                #sample_embeds["embeds"].append(out_d)
 
 
-        #initial encoding to locate masks after wordpiece tokenization
-        encoded = a_t.encode(masked_sample, add_special_tokens=False)
-
-        mask_index = encoded.index(a_t.mask_token_id) 
-
-        orig_ns_encoded = a_t.encode(json_sample["NS"],add_special_tokens=False)
-        orig_ns_inserted_ids, index_range = insert_alt_id_at_mask(orig_ns_encoded, encoded, mask_index)
-        orig_ns_prepared = a_t.prepare_for_model(ids=orig_ns_inserted_ids, return_tensors="pt", prepend_batch_axis=True)
-
-        ground_encoded = a_t.encode(json_sample["Ground"],add_special_tokens=False)
-        ground_inserted_ids, index_range = insert_alt_id_at_mask(ground_encoded, encoded, mask_index)
-        ground_prepared = a_t.prepare_for_model(ids=ground_inserted_ids, return_tensors="pt", prepend_batch_axis=True)
-
-        logging.info("Sample: "+json_sample["sample"])
-        logging.info("Ground: "+json_sample["Ground"])
-        logging.info("NS: "+json_sample["NS"])
-        logging.info("Num Alts: " + str(len(json_sample["Alts"])))
-
-        out_d = {json_sample["NS"]: get_hidden_states(orig_ns_prepared, index_range, model, layers, args.layers), json_sample["Ground"]: get_hidden_states(ground_prepared, index_range, model, layers, args.layers)}
-        print(out_d)
-        for alt in json_sample["Alts"]:
-            alt_encoded = a_t.encode(alt, add_special_tokens=False)
-            alt_inserted_ids, index_range = insert_alt_id_at_mask(alt_encoded, encoded, mask_index)
-            alt_prepared = a_t.prepare_for_model(ids=alt_inserted_ids, return_tensors="pt", prepend_batch_axis=True)
-            out_d[alt] = get_hidden_states(alt_prepared, index_range, model, layers, args.layers)
-
-
-        torch.save(out_d,out_embed)
+            chunk_out.write(json.dumps(json_sample) + "\n")
 

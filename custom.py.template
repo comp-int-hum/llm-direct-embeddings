@@ -1,0 +1,2 @@
+# MODELS = ["google/canine-c", "bert-large-uncased", "roberta-large"]
+# DATA_PATH = "data/"

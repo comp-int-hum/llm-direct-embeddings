@@ -35,15 +35,12 @@ vars = Variables("custom.py")
 vars.AddVariables(
     ("OUTPUT_WIDTH", "", 5000),
     ("MODELS","",["google/canine-c", "bert-large-uncased", "roberta-large"]),
-    #("MODELS","",["bert-large-uncased", "google/canine-c", "roberta-large", "general_character_bert"]),
-    #("MODELS", "", ["bert-base-uncased", "bert-large-uncased", "roberta-base", "roberta-large", "general_character_bert", "google/canine-c", "google/canine-s"]),
-    #("LAYERS","", [[-1,-2,-3,-4], [-1], [1], [2], [3], [1,2,3], [6]]),
     ("LAYERS","",["last","last_four", "first_three", "middle"]),
     ("DATA_PATH", "", "data"),
     ("DATASETS", "", ["fce-released-dataset", "mycorpus"]),
     ("CORPORA_DIR","","corpora"),
     ("RANDOM_STATE","", 10),
-    ("NUM_CHUNKS","",5),
+    ("NUM_CHUNKS","",500),
     ("MAX_LD","",3)
 )
 
@@ -55,7 +52,7 @@ env = Environment(variables=vars, ENV=os.environ, TARFLAGS="-c -z", TARSUFFIX=".
 env.AddBuilder(
     "LoadSamples",
     "scripts/load_samples.py",
-    "--input_file ${SOURCES[0]} --output_file ${TARGETS[0]}",
+    "--input_file ${SOURCES[0]} --output_file ${TARGETS[0]} --max_ld ${MAX_LD}",
 )
 
 env.AddBuilder(
@@ -67,14 +64,14 @@ env.AddBuilder(
 env.AddBuilder(
     "EmbedBertlike",
     "scripts/get_tensors_bertlike.py",
-    "${SOURCES} --embeddings_out ${TARGETS} --model ${MODEL_NAME} --layers ${LAYERS}"
+    "${SOURCES[0]} ${TARGETS[0]} --model ${MODEL_NAME} --layers ${LAYERS}"
 )
 
 
 env.AddBuilder(
     "EmbedCanine",
     "scripts/get_tensors_canine.py",
-    "${SOURCES} --model ${MODEL_NAME} --embeddings_out ${TARGETS} --layers ${LAYERS}"
+    "${SOURCES[0]} ${TARGETS[0]} --model ${MODEL_NAME} --layers ${LAYERS}"
     )
 
 env.AddBuilder(
@@ -86,14 +83,14 @@ env.AddBuilder(
 env.AddBuilder(
     "Pred",
     "scripts/pred.py",
-    "${SOURCES} --pred_out ${TARGETS} --chunk ${CHUNK} --model_name ${MODEL_NAME} --layers ${LAYERS}"
+    "${SOURCES[0]} ${TARGETS[0]} --model_name ${MODEL_NAME} --layers ${LAYERS}"
 
     )
 
 env.AddBuilder(
-    "EvalResults",
-    "scripts/eval_results.py",
-    "${SOURCES} --outfile ${TARGETS[0]}"
+    "PredictionSummary",
+    "scripts/summarize_preds.py",
+    "${SOURCES} --outfile ${TARGETS[0]} --layers ${LAYERS} --model_name ${MODEL_NAME}"
 )
 
 
@@ -133,36 +130,24 @@ for dataset_name in env["DATASETS"]:
         samples,
         DATASET_NAME=dataset_name
     )
-    continue
-    if dataset_name[0] == "fce-released-dataset":
-        d_samples_full = env.LoadSamples(os.path.join("work","fce-released-dataset","full.csv"),[f for f in glob.glob(env["CORPORA_DIR"]+"/fce-released-dataset"+"/dataset"+"/*/*.xml", recursive = True)], CORPUS_NAME=dataset_name[0])
-    elif dataset_name[0] == "mycorpus":
-        d_samples_full = env.LoadSamples(os.path.join("work","mycorpus","full.csv"), env["CORPORA_DIR"]+"/mycorpus/corpus_0_1.gz", CORPUS_NAME=dataset_name[0] )
-
-    split_dataset_targets = [os.path.join("work", dataset_name[0], "split", "sample"+str(i)+".json") for i in range(0,dataset_name[1])]
-    split_dataset_indices = [i for i in range(0,dataset_name[1])]
-    targets_chunk_split = np.array_split(split_dataset_targets, env["NUM_CHUNKS"])
-    indices_chunk_split = np.array_split(split_dataset_indices, env["NUM_CHUNKS"])
-
-    sample_chunks = [env.SplitToChunks(list(cs), d_samples_full, CHUNK_INDICES = list(ci)) for cs, ci in zip(targets_chunk_split,indices_chunk_split)]
-    
 
     chunk_embed_dict = defaultdict(list)
-    for chunk in sample_chunks:
+    for c_i,chunk in enumerate(chunks):
         for model_name in env["MODELS"]:
-            model_results = []
-            embed_names = [os.path.join("work",dataset_name[0],model_name,"embeddings",os.path.splitext(os.path.split(c.get_path())[-1])[0]+"_embed.pt") for c in chunk]
             if model_name in ["bert-large-uncased", "bert-base-uncased", "roberta-base", "roberta-large"]:
-                chunk_embed_dict[model_name].append(env.EmbedBertlike(embed_names, chunk, MODEL_NAME=model_name, LAYERS=env["LAYERS"]))
-            elif model_name in ["google/canine-c", "google/canine-s"]:
-                chunk_embed_dict[model_name].append(env.EmbedCanine(embed_names,chunk,MODEL_NAME=model_name,LAYERS=["last"]))
-            elif model_name == "general_character_bert":
-                chunk_embed_dict[model_name].append(env.EmbedCBert(embed_names,chunk,MODEL_NAME=model_name))
-    
+                chunk_embed_dict[model_name].append(env.EmbedBertlike("work/${DATASET_NAME}/${MODEL_NAME}/embeds/"+"chunk_embed"+str(c_i)+".json.gz", chunk, MODEL_NAME=model_name, LAYERS=env["LAYERS"], DATASET_NAME=dataset_name))
 
+            elif model_name in ["google/canine-c", "google/canine-s"]:
+                chunk_embed_dict[model_name].append(env.EmbedCanine("work/${DATASET_NAME}/${MODEL_NAME}/embeds/"+"chunk_embed"+str(c_i)+".json.gz",chunk,MODEL_NAME=model_name,LAYERS=["last"], DATASET_NAME=dataset_name))
+            #elif model_name == "general_character_bert":
+                #chunk_embed_dict[model_name].append(env.EmbedCBert(embed_names,chunk,MODEL_NAME=model_name))
+    
+    continue
     pred_results = defaultdict(list)
     for m_name, embeds in chunk_embed_dict.items():
-        for chunk,embed in zip(sample_chunks,embeds):
-            pred_names = [os.path.join("work",dataset_name[0],m_name,"preds",os.path.splitext(os.path.split(c.get_path())[-1])[0]+"_preds.json") for c in chunk]
-            pred_results[m_name].append(env.Pred(pred_names, embed, MODEL_NAME=m_name, CHUNK=chunk, LAYERS=env["LAYERS"]))
+        for e_i,embed in enumerate(embeds):
+            pred_results[m_name].append(env.Pred("work/${DATASET_NAME}/${MODEL_NAME}/preds/chunk_pred"+str(e_i)+".json.gz", embed, MODEL_NAME=m_name, LAYERS=env["LAYERS"], DATASET_NAME=dataset_name))
 
+    results_sums = []
+    for m_name, results in pred_results.items():
+        results_sums.append(env.PredictionSummary("work/results/${DATASET_NAME}/${MODEL_NAME}_results.csv", results, MODEL_NAME=m_name, DATASET_NAME=dataset_name, LAYERS=env["LAYERS"]))
