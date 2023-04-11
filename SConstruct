@@ -43,7 +43,6 @@ vars.AddVariables(
     ("NUM_CHUNKS","",50),
     ("MAX_LD","",3),
     ("DEVICE", "", "cpu"), # cpu or cuda
-    ("TEST_SAMPLE","",False)
 )
 
 
@@ -54,7 +53,7 @@ env = Environment(variables=vars, ENV=os.environ, TARFLAGS="-c -z", TARSUFFIX=".
 env.AddBuilder(
     "LoadSamples",
     "scripts/load_samples.py",
-    "--input_file ${SOURCES[0]} --output_file ${TARGETS[0]} --max_ld ${MAX_LD} --test_sample ${TEST_SAMPLE}",
+    "--input_file ${SOURCES[0]} --output_file ${TARGETS[0]} --max_ld ${MAX_LD}",
 )
 
 env.AddBuilder(
