@@ -37,8 +37,8 @@ vars.AddVariables(
     ("MODELS","",["google/canine-c", "bert-large-uncased", "roberta-large"]),
     ("LAYERS","",["last","last_four", "first_three", "middle"]),
     ("DATA_PATH", "", "corpora"),
-    ("DATASETS", "", ["fce-released-dataset"]),#, "mycorpus"]),
-    ("CORPORA_DIR","","corpora"),
+    ("DATASETS", "", ["mycorpus"]),#, "fce-released-dataset"]),
+    ("CORPORA_DIR","","data"),
     ("RANDOM_STATE","", 10),
     ("NUM_CHUNKS","",50),
     ("MAX_LD","",3),
@@ -91,7 +91,7 @@ env.AddBuilder(
 env.AddBuilder(
     "PredictionSummary",
     "scripts/summarize_preds.py",
-    "${SOURCES} --outfile ${TARGETS[0]} --layers ${LAYERS} --model_name ${MODEL_NAME}"
+    "${SOURCES} --accurate ${TARGETS[0]} --inaccurate ${TARGETS[1]} --summary ${TARGETS[2]} --layers ${LAYERS}"
 )
 
 
@@ -152,4 +152,16 @@ for dataset_name in env["DATASETS"]:
 
     results_sums = []
     for m_name, results in pred_results.items():
-        results_sums.append(env.PredictionSummary("work/results/${DATASET_NAME}/${MODEL_NAME}_results.csv", results, MODEL_NAME=m_name, DATASET_NAME=dataset_name, LAYERS=env["LAYERS"]))
+        if m_name in ["google/canine-c", "general_character_bert","google/canine-s"]:
+            results_sums.append(env.PredictionSummary([
+                "work/results/${DATASET_NAME}/${MODEL_NAME}_accurate.csv",
+                "work/results/${DATASET_NAME}/${MODEL_NAME}_inaccurate.csv",
+                "work/results/${DATASET_NAME}/${MODEL_NAME}_summary.txt"],
+                results, MODEL_NAME=m_name, DATASET_NAME=dataset_name, LAYERS="last"))
+        else:
+            for layer in env["LAYERS"]:
+                results_sums.append(env.PredictionSummary([
+                    "work/results/${DATASET_NAME}/${MODEL_NAME}_${LAYERS}_accurate.csv",
+                    "work/results/${DATASET_NAME}/${MODEL_NAME}_${LAYERS}_inaccurate.csv",
+                    "work/results/${DATASET_NAME}/${MODEL_NAME}_${LAYERS}_summary.txt"],
+                    results, MODEL_NAME=m_name, DATASET_NAME=dataset_name, LAYERS=layer))
