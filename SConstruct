@@ -37,7 +37,8 @@ vars.AddVariables(
     ("MODELS","",["google/canine-c", "bert-large-uncased", "roberta-large"]),
     ("LAYERS","",["last","last_four", "first_three", "middle"]),
     ("DATA_PATH", "", "corpora"),
-    ("DATASETS", "", ["mycorpus"]),#, "fce-released-dataset"]),
+    ("DATASETS", "", ["fce-released-dataset"]),#, "mycorpus"]),
+    ("ALTERNATES_FILE","","britwords.csv"),
     ("CORPORA_DIR","","data"),
     ("RANDOM_STATE","", 10),
     ("NUM_CHUNKS","",50),
@@ -84,7 +85,7 @@ env.AddBuilder(
 env.AddBuilder(
     "Pred",
     "scripts/pred.py",
-    "${SOURCES[0]} ${TARGETS[0]} --model_name ${MODEL_NAME} --layers ${LAYERS}"
+    "${SOURCES[0]} ${TARGETS[0]} --model_name ${MODEL_NAME} --layers ${LAYERS} --alternates_file ${ALTERNATES_FILE}"
 
     )
 
@@ -119,6 +120,7 @@ env.Decider("timestamp-newer")
 
 
 #chunk into X pieces for use with -j --jobs (so can implicitly multicore over x processors)
+#change to have a custom command line option that will force filebuilder instead of custom defined (to deal with graph )
 
 for dataset_name in env["DATASETS"]:
     samples = env.LoadSamples(
@@ -131,6 +133,7 @@ for dataset_name in env["DATASETS"]:
         samples,
         DATASET_NAME=dataset_name
     )
+
 
 
 

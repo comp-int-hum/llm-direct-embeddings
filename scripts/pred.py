@@ -11,6 +11,22 @@ log_format = "%(asctime)s::%(filename)s::%(message)s"
 
 logging.basicConfig(level='INFO', format=log_format)
 
+def checkWordEquality(standard, alt, alt_dict):
+	if alt.strip() == standard.strip():
+		return True
+	if standard.strip() in alt_dict:
+		if standard.strip() == alt_dict[standard.strip()]:
+			return True
+	return False
+
+def checkStandardInAlts(standard, alts, alt_dict):
+	if standard.strip() in alts:
+		return True
+	if standard.strip() in alt_dict:
+		if alt_dict[standard.strip()] in alts:
+			return True
+	return False
+
 
 #combine embeddings? Train over known ground and created composites?
 
@@ -20,9 +36,18 @@ if __name__ == "__main__":
 	parser.add_argument("pred_out", help="Outfile of predictions")
 	parser.add_argument("--model_name", dest="model_name", help="A model name of a bertlike model")
 	parser.add_argument("--layers", nargs="+", dest="layers", help="Layers")
+	parser.add_argument("--alternates_file", dest="alternates_file", help="A 2 column CSV file of alternate (say brit/us english) correct spellings")
 
 
 	args, rest = parser.parse_known_args()
+
+	conversion_dict = {}
+	with open(args.alternates_files, "rt") as alts_in:
+		for line in alts_in:
+			split_line = line.split("\t")
+			conversion_dict[split_line[0].strip()] = split_line[1].strip()
+
+
 
 
 	if args.model_name in ["google/canine-c", "general_character_bert","google/canine-s"]:
@@ -48,9 +73,9 @@ if __name__ == "__main__":
 						if pred["CD"] > final_pred[layer]["CD"] and pred["LD"] <= final_pred[layer]["LD"]:
 							final_pred[layer] = pred
 							final_pred[layer]["alt"] = alt
-							final_pred[layer]["acc"] = True if alt.strip() == annotation["standard"].strip() else False
+							final_pred[layer]["acc"] = checkWordEquality(annotation["standard"], alt, conversion_dict)
 
-				out_l.append({"preds": alt_preds, "final_pred":final_pred, "observed":annotation["observed"], "standard": annotation["standard"]})
+				out_l.append({"preds": alt_preds, "final_pred":final_pred, "observed":annotation["observed"], "standard": annotation["standard"], "alt_present":int(checkStandardInAlts(annotation["standard"], annotation["alts"], conversion_dict))})
 
 
 			json_out.write(json.dumps(out_l) + "\n")

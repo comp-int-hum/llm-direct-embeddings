@@ -43,7 +43,7 @@ def loadCorpus(fname, sent_sep=True):
                             else:
                                 item["text"] += elem.text
                         yield item
-            elif member.name.endswith("jsonl"):
+            elif member.name.endswith("jsonl") or member.name.endswith("json"):
                 for line in ifd:
                     j = json.loads(line)
                     item = {
