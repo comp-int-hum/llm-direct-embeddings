@@ -52,16 +52,17 @@ def loadCorpus(fname, sent_sep=True):
                     }
                     for obs, props in j["words"].items():
                         for start in props["i"]:
-                            end = start + len(obs)
-                            item["annotations"].append(
-                                {
-                                    "start" : start,
-                                    "end" : end,
-                                    "observed" : item["text"][start:end],
-                                    "standard" : props["Std"],
-                                    "ocr" : props.get("OCR", False)
-                                }
-                            )
+                            if props["Std"] != "{}":
+                                end = start + len(obs)
+                                item["annotations"].append(
+                                    {
+                                        "start" : start,
+                                        "end" : end,
+                                        "observed" : item["text"][start:end],
+                                        "standard" : props["Std"],
+                                        "ocr" : props.get("OCR", False)
+                                    }
+                                )
                     yield item
 
 

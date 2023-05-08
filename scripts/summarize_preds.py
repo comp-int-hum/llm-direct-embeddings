@@ -20,7 +20,7 @@ if __name__ == "__main__":
 	parser.add_argument("--accurate", dest="accurate", help="Accurate results")
 	parser.add_argument("--inaccurate", dest="inaccurate", help="Inaccurate results")
 	parser.add_argument("--summary", dest="summary", help="Summary text file")
-	parser.add_argument("--layers", nargs="+", dest="layers")
+	parser.add_argument("--layers", dest="layers")
 
 
 	args, rest = parser.parse_known_args()

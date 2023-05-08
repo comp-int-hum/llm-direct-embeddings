@@ -42,9 +42,9 @@ if __name__ == "__main__":
 	args, rest = parser.parse_known_args()
 
 	conversion_dict = {}
-	with open(args.alternates_files, "rt") as alts_in:
+	with open(args.alternates_file, "rt") as alts_in:
 		for line in alts_in:
-			split_line = line.split("\t")
+			split_line = line.split(",")
 			conversion_dict[split_line[0].strip()] = split_line[1].strip()
 
 
