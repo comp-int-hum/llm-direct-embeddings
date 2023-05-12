@@ -124,3 +124,4 @@ if __name__ == "__main__":
                 print(json_sample["text"])
                 print(len(annotation["alts"]))
                 print(encoded_inputs.shape)
+                input()
