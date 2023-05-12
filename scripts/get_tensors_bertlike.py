@@ -58,6 +58,19 @@ if __name__ == "__main__":
 
     device = torch.device(args.device)
 
+    #RETURN SIZE HANDLING
+  #  nsors_bertlike.py", line 153, in <module>
+ #   outputs = get_hidden_states(
+ # File "/home/messner1/llm-direct-embeddings/scripts/get_tensors_bertlike.py", line 28, in get_hidden_states
+ #   output = model(**{k : v.to(device) for k, v in encoded.items()})
+ # File "/home/messner1/llm-direct-embeddings/local/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1110, in _call_impl
+ #   return forward_call(*input, **kwargs)
+ # File "/home/messner1/llm-direct-embeddings/local/lib/python3.9/site-packages/transformers/models/bert/modeling_bert.py", line 962, in forward
+ #   buffered_token_type_ids_expanded = buffered_token_type_ids.expand(batch_size, seq_length)
+#RuntimeError: The expanded size of the tensor (637) must match the existing size (512) at non-singleton dimension 1. 
+
+#make sure to include N alternatives in prediction summaries
+
     logging.info("Loading model...")
     a_t = AutoTokenizer.from_pretrained(args.model_name)
     model = AutoModel.from_pretrained(args.model_name, output_hidden_states=True)

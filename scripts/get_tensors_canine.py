@@ -66,55 +66,61 @@ if __name__ == "__main__":
     model.to(device)
     logging.info("Model loaded")
 
-
+    #RETURN SIZE HANDLING
 
     with gzip.open(args.chunk_json,"rt") as chunk_in, gzip.open(args.embeddings_out, "wt") as chunk_out:
         for line in chunk_in:
             json_sample = json.loads(line)
             logging.info("Processing sentence '%s'", json_sample["text"]) 
 
-            for i, annotation in enumerate(json_sample["annotations"]):
+            try:
+                for i, annotation in enumerate(json_sample["annotations"]):
 
-                logging.info(
-                    "\tProcessing observed token '%s' with standard form '%s'",
-                    annotation["observed"],
-                    annotation["standard"]
-                )
 
-                
-
-                ground_inserted, g_i_e_i = insert_alt_seq_at_index(json_sample["text"], annotation["standard"], annotation["start"], annotation["end"])
-                inputs = [json_sample["text"], ground_inserted]
-                end_indices = [annotation["end"]+1, g_i_e_i+1] #CLS token
-
-                lds = []
-                for alt in annotation["alts"]:
-                    lds.append(annotation["alts"][alt])
-                    alt_inserted, new_ei = insert_alt_seq_at_index(json_sample["text"], alt, annotation["start"], annotation["end"])
-                    inputs.append(alt_inserted)
-                    end_indices.append(new_ei+1)
-
-                encoded_inputs = t_c(inputs, padding="longest", truncation=True, return_tensors="pt")
-
-                outputs = get_hidden_states(encoded_inputs,
-                    annotation["start"] + 1,
-                    end_indices,
-                    model,
-                    layers,
-                    args.layers,
-                    device,
-                )
-
-                json_sample["annotations"][i]["observed_embeddings"] = outputs[0]
-                json_sample["annotations"][i]["standard_embeddings"] = outputs[1]
-
-                json_sample["annotations"][i]["alts"] = {
-                    alt : {"embed": emb, "LD": ld} for alt, emb, ld in zip(
-                        json_sample["annotations"][i]["alts"],
-                        [outputs[j] for j in range(2,len(outputs))],
-                        lds
+                    logging.info(
+                        "\tProcessing observed token '%s' with standard form '%s'",
+                        annotation["observed"],
+                        annotation["standard"]
                     )
-                }
+
+                    
+
+                    ground_inserted, g_i_e_i = insert_alt_seq_at_index(json_sample["text"], annotation["standard"], annotation["start"], annotation["end"])
+                    inputs = [json_sample["text"], ground_inserted]
+                    end_indices = [annotation["end"]+1, g_i_e_i+1] #CLS token
+
+                    lds = []
+                    for alt in annotation["alts"]:
+                        lds.append(annotation["alts"][alt])
+                        alt_inserted, new_ei = insert_alt_seq_at_index(json_sample["text"], alt, annotation["start"], annotation["end"])
+                        inputs.append(alt_inserted)
+                        end_indices.append(new_ei+1)
+
+                    encoded_inputs = t_c(inputs, padding=True, truncation=True, return_tensors="pt")
+
+                    outputs = get_hidden_states(encoded_inputs,
+                        annotation["start"] + 1,
+                        end_indices,
+                        model,
+                        layers,
+                        args.layers,
+                        device,
+                    )
+
+                    json_sample["annotations"][i]["observed_embeddings"] = outputs[0]
+                    json_sample["annotations"][i]["standard_embeddings"] = outputs[1]
+
+                    json_sample["annotations"][i]["alts"] = {
+                        alt : {"embed": emb, "LD": ld} for alt, emb, ld in zip(
+                            json_sample["annotations"][i]["alts"],
+                            [outputs[j] for j in range(2,len(outputs))],
+                            lds
+                        )
+                    }
 
 
-            chunk_out.write(json.dumps(json_sample) + "\n")
+                chunk_out.write(json.dumps(json_sample) + "\n")
+            except RuntimeError:
+                print(json_sample["text"])
+                print(len(annotation["alts"]))
+                print(encoded_inputs.shape)
