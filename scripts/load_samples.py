@@ -20,7 +20,7 @@ def loadCorpus(fname, sent_sep=True):
                         item = {
                             "text" : "",
                             "annotations" : [],
-                            "n_ided_ns": len([elem for elem in p if elem.name=="NS"])
+                            "other_ided_ns": []
                         }
                         for elem in p:
                             if elem.name == "NS" and elem.i and elem.c and elem["type"] in ["S", "SA", "SX"]:
@@ -37,10 +37,14 @@ def loadCorpus(fname, sent_sep=True):
                                     }
                                 )
                             elif elem.name == "NS":
+                                start = len(item["text"])
                                 if elem.i:
                                     item["text"] += elem.i.text
+                                    end = start + len(elem.i.text)
                                 elif elem.c:
                                     item["text"] += elem.c.text
+                                    end = start + len(elem.i.text)
+                                item["other_ided_ns"].append({"start":start, "end":end})
                             else:
                                 item["text"] += elem.text
                         yield item
@@ -50,7 +54,7 @@ def loadCorpus(fname, sent_sep=True):
                     item = {
                         "text" : j["sample"],
                         "annotations" : [],
-                        "n_ided_ns": len(j["words"])
+                        "other_ided_ns": []
                     }
                     for obs, props in j["words"].items():
                         for start in props["i"]:
@@ -87,9 +91,20 @@ if __name__ == "__main__":
                 sentence_item = {
                     "text" : sentence.lower(),
                     "annotations" : [],
-                    "n_ided_ns": item["n_ided_ns"]
-                }
+                    "other_ided_ns": []                }
                 new_offset = offset + len(sentence)
+                for other_ns in item["other_ided_ns"]:
+                    if all([
+                            other_ns["start"] < new_offest,
+                            other_ns["start"] < offset,
+                            other_ns["end"] < new_offset
+                        ]):
+                            sentence_item["other_ided_ns"].append({
+                                "start":other_ns["start"]
+                                "end":other_ns["end"]
+                                })
+
+
                 for annotation in item["annotations"]:
                     if all(
                             [
