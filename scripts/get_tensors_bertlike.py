@@ -12,6 +12,8 @@ import gzip
 import json
 import tarfile
 
+import math
+
 
 
 
@@ -102,7 +104,20 @@ if __name__ == "__main__":
                 encoded = a_t.encode(masked_sample, add_special_tokens=False)
                 mask_index = encoded.index(a_t.mask_token_id)
                 alts_encoded = [a_t.encode(alt, add_special_tokens=False) for alt in annotation["alts"]]
+
+                orig_ns_encoded = a_t.encode(
+                    annotation["observed"],
+                    add_special_tokens=False
+                )
+
+                ground_encoded = a_t.encode(
+                    annotation["standard"],
+                    add_special_tokens=False
+                )
+
                 alt_lens = [len(a_e) for a_e in alts_encoded]
+                alt_lens.append(len(orig_ns_encoded))
+                alt_lens.append(len(ground_encoded))
                 max_alt_len = max(alt_lens) if len(alt_lens) > 0 else 0
 
 
@@ -143,10 +158,7 @@ if __name__ == "__main__":
                 }
                 index_ranges = []
 
-                orig_ns_encoded = a_t.encode(
-                    annotation["observed"],
-                    add_special_tokens=False
-                )
+
                 orig_ns_inserted_ids, orig_index_range = insert_alt_id_at_mask(
                     orig_ns_encoded,
                     encoded,
@@ -161,10 +173,6 @@ if __name__ == "__main__":
                 inputs["input_ids"].append(orig_ns_prepared["input_ids"].tolist())
                 inputs["attention_mask"].append(orig_ns_prepared["attention_mask"].tolist())
                 
-                ground_encoded = a_t.encode(
-                    annotation["standard"],
-                    add_special_tokens=False
-                )
                 ground_inserted_ids, ground_index_range = insert_alt_id_at_mask(
                     ground_encoded,
                     encoded,

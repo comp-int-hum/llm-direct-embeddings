@@ -19,7 +19,8 @@ def loadCorpus(fname, sent_sep=True):
                     for p in ca.find_all("p"):
                         item = {
                             "text" : "",
-                            "annotations" : []
+                            "annotations" : [],
+                            "n_ided_ns": len([elem for elem in p if elem.name=="NS"])
                         }
                         for elem in p:
                             if elem.name == "NS" and elem.i and elem.c and elem["type"] in ["S", "SA", "SX"]:
@@ -48,7 +49,8 @@ def loadCorpus(fname, sent_sep=True):
                     j = json.loads(line)
                     item = {
                         "text" : j["sample"],
-                        "annotations" : []
+                        "annotations" : [],
+                        "n_ided_ns": len(j["words"])
                     }
                     for obs, props in j["words"].items():
                         for start in props["i"]:
@@ -84,7 +86,8 @@ if __name__ == "__main__":
                 sentence = sentence_match.group(1)
                 sentence_item = {
                     "text" : sentence.lower(),
-                    "annotations" : []
+                    "annotations" : [],
+                    "n_ided_ns": item["n_ided_ns"]
                 }
                 new_offset = offset + len(sentence)
                 for annotation in item["annotations"]:
