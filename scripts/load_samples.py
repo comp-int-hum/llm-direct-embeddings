@@ -43,7 +43,7 @@ def loadCorpus(fname, sent_sep=True):
                                     end = start + len(elem.i.text)
                                 elif elem.c:
                                     item["text"] += elem.c.text
-                                    end = start + len(elem.i.text)
+                                    end = start + len(elem.c.text)
                                 item["other_ided_ns"].append({"start":start, "end":end})
                             else:
                                 item["text"] += elem.text
@@ -95,12 +95,12 @@ if __name__ == "__main__":
                 new_offset = offset + len(sentence)
                 for other_ns in item["other_ided_ns"]:
                     if all([
-                            other_ns["start"] < new_offest,
+                            other_ns["start"] < new_offset,
                             other_ns["start"] < offset,
                             other_ns["end"] < new_offset
                         ]):
                             sentence_item["other_ided_ns"].append({
-                                "start":other_ns["start"]
+                                "start":other_ns["start"],
                                 "end":other_ns["end"]
                                 })
 
