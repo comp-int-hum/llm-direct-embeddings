@@ -80,7 +80,7 @@ if __name__ == "__main__":
 							final_pred[layer]["alt"] = alt
 							final_pred[layer]["acc"] = checkWordEquality(annotation["standard"], alt, conversion_dict)
 
-				out_l.append({"preds": alt_preds, "final_pred":final_pred, "observed":annotation["observed"], "standard": annotation["standard"], "alt_present":int(checkStandardInAlts(annotation["standard"], annotation["alts"], conversion_dict)), "num_alts":len(annotation["alts"]), "other_ided_ns":embed["other_ided_ns"]})
+				out_l.append({"preds": alt_preds, "final_pred":final_pred, "observed":annotation["observed"], "standard": annotation["standard"], "alt_present":int(checkStandardInAlts(annotation["standard"], annotation["alts"], conversion_dict)), "num_alts":len(annotation["alts"]), "other_ided_ns":embeds["other_ided_ns"]})
 
 
 			json_out.write(json.dumps(out_l) + "\n")
