@@ -28,25 +28,31 @@ if __name__ == "__main__":
 	with open(args.accurate,"wt",newline="") as accurate_out, open(args.inaccurate,"wt",newline="") as inaccurate_out:
 		accurate_writer = csv.writer(accurate_out, delimiter=",")
 		inaccurate_writer = csv.writer(inaccurate_out, delimiter=",")
-		accurate_writer.writerow(["observed", "standard", "alt", "CD", "LD", "acc", "alt_present"])
-		inaccurate_writer.writerow(["observed", "standard", "alt", "CD", "LD", "acc", "alt_present"])
+		accurate_writer.writerow(["observed", "standard", "alt", "CD", "LD", "acc", "alt_present", "other_ided_ns"])
+		inaccurate_writer.writerow(["observed", "standard", "alt", "CD", "LD", "acc", "alt_present", "other_ided_ns"])
 
 		sample_total = 0
 		in_alts_total = 0
 		correct_total = 0
 		inaccurate_not_in_alts = 0
+		only_ns_total = 0
+		only_ns_accurate = 0
 		for chunk in args.chunk_results:
 			with gzip.open(chunk) as chunk_result:
 				for s_result in chunk_result:
 					s_result = json.loads(s_result)
 					for annotation in s_result:
 						sample_total += 1
+						if int(annotation["other_ided_ns"]) == 0:
+							only_ns_total += 1
 						in_alts_total += annotation["alt_present"]
 						row = [annotation["observed"], annotation["standard"], annotation["final_pred"][args.layers]["alt"], 
-							annotation["final_pred"][args.layers]["CD"], annotation["final_pred"][args.layers]["LD"], int(annotation["final_pred"][args.layers]["acc"]), annotation["alt_present"]]
+							annotation["final_pred"][args.layers]["CD"], annotation["final_pred"][args.layers]["LD"], int(annotation["final_pred"][args.layers]["acc"]), annotation["alt_present"], annotation["other_ided_ns"]]
 
 						if annotation["final_pred"][args.layers]["acc"]:
 							correct_total += 1
+							if int(annotation["other_ided_ns"]) == 0:
+								only_ns_accurate += 1
 							accurate_writer.writerow(row)
 						else:
 							inaccurate_writer.writerow(row)
@@ -59,6 +65,7 @@ if __name__ == "__main__":
 			summary_out.write("Accuracy: " + str(float(correct_total)/sample_total) + "\n")
 			summary_out.write("Observed in alts percentage: " + str(float(in_alts_total)/sample_total) + "\n")
 			summary_out.write("Inaccurate and not observed in alts: " + str(inaccurate_not_in_alts) + "\n")
+			summary_out.write("Accuracy single NS " + str(float(only_ns_accurate)/only_ns_total) + "\n")
 		
 
 		"""
