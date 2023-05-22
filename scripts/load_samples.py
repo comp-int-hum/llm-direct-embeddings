@@ -122,7 +122,7 @@ if __name__ == "__main__":
                                 "standard" : annotation["standard"].lower(),
                                 "ocr" : annotation["ocr"],
 
-                                "alts": {a[1]: a[0] for a in brown_tree.find(annotation["observed"].lower(), args.max_ld) if len(wn.synsets(a[1])) > 0}                     
+                                "alts": {a[1]: a[0] for a in brown_tree.find(annotation["observed"].lower(), args.max_ld)} #if len(wn.synsets(a[1])) > 0}                     
 
                             }
                         )
