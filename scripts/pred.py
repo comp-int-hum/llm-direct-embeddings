@@ -5,30 +5,35 @@ import argparse
 import gzip
 
 from utility.pred_utils import LAYER_LOOKUP
-
+from nltk.stem import WordNetLemmatizer
 
 log_format = "%(asctime)s::%(filename)s::%(message)s"
 
 logging.basicConfig(level='INFO', format=log_format)
 
 def checkWordEquality(standard, alt, alt_dict):
-	if alt.strip() == standard.strip():
+	if alt == standard:
 		return True
-	if standard.strip() in alt_dict:
-		if standard.strip() == alt_dict[standard.strip()]:
+	if lemmatizer.lemmatize(alt) == lemmatizer.lemmatize(standard):
+		return True
+	if standard in alt_dict:
+		if standard == alt_dict[standard]:
 			return True
+
 	return False
 
 def checkStandardInAlts(standard, alts, alt_dict):
-	if standard.strip() in alts:
+	if standard in alts:
 		return True
-	if standard.strip() in alt_dict:
-		if alt_dict[standard.strip()] in alts:
+	if standard in alt_dict:
+		if alt_dict[standard] in alts:
 			return True
 	return False
 
 
 #combine embeddings? Train over known ground and created composites?
+
+lemmatizer = WordNetLemmatizer()
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
