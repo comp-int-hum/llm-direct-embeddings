@@ -85,7 +85,7 @@ def loadBrownCorpusTree():
 def loadBrownWNCorpusTree():
 	corpus_dictionary = Counter([word.lower() for word in brown.words() if word.isalpha() and not word[0].isupper()])
 	corpus_dictionary = [w for w,c in corpus_dictionary.items() if c > 1]
-	corpus_dictionary = list(set(corpus_dictionary).union(set([word for word in wn.words()])))
+	corpus_dictionary = list(set(corpus_dictionary).union(set([word for word in wn.words() if "_" not in word])))
 	return pybktree.BKTree(jellyfish.levenshtein_distance, corpus_dictionary)
 
 
