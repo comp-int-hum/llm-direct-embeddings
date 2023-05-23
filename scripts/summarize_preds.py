@@ -43,7 +43,7 @@ if __name__ == "__main__":
 					s_result = json.loads(s_result)
 					for annotation in s_result:
 						sample_total += 1
-						if int(annotation["other_ided_ns"]) == 0:
+						if int(annotation["total_ns_in_sample"]) == 1:
 							only_ns_total += 1
 						in_alts_total += annotation["alt_present"]
 						row = [annotation["observed"], annotation["standard"], annotation["final_pred"][args.layers]["alt"], 
@@ -51,7 +51,7 @@ if __name__ == "__main__":
 
 						if annotation["final_pred"][args.layers]["acc"]:
 							correct_total += 1
-							if int(annotation["other_ided_ns"]) == 0:
+							if int(annotation["total_ns_in_sample"]) == 1:
 								only_ns_accurate += 1
 							accurate_writer.writerow(row)
 						else:

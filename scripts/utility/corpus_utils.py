@@ -5,6 +5,7 @@ import re
 
 from nltk.corpus import brown
 from nltk.corpus import wordnet as wn
+from nltk.corpus import stopwords
 import pybktree
 import jellyfish
 
@@ -79,7 +80,7 @@ def maskSample(text, annotation, mask_token = "[MASK]"):
 
 def loadBrownCorpusTree():
 	corpus_dictionary = Counter([word.lower() for word in brown.words() if word.isalpha() and not word[0].isupper()])
-	corpus_dictionary = [w for w,c in corpus_dictionary.items() if c > 1]
+	corpus_dictionary = [w for w,c in corpus_dictionary.items() if c > 0]
 	return pybktree.BKTree(jellyfish.levenshtein_distance, corpus_dictionary)
 
 def loadBrownWNCorpusTree():
@@ -88,6 +89,8 @@ def loadBrownWNCorpusTree():
 	corpus_dictionary = list(set(corpus_dictionary).union(set([word for word in wn.words() if "_" not in word])))
 	return pybktree.BKTree(jellyfish.levenshtein_distance, corpus_dictionary)
 
+def loadSWTree():
+	return pybktree.BKTree(jellyfish.levenshtein_distance, [w for w in stopwords("english")])
 
 
 """

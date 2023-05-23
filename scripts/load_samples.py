@@ -4,7 +4,8 @@ import gzip
 import json
 import tarfile
 from bs4 import BeautifulSoup
-from utility.corpus_utils import loadBrownCorpusTree, loadBrownWNCorpusTree
+from utility.corpus_utils import loadBrownCorpusTree, loadBrownWNCorpusTree, loadSWTree
+from nltk.corpus import stopwords
 
 from nltk.corpus import wordnet as wn
 
@@ -14,6 +15,7 @@ def loadCorpus(fname, sent_sep=True):
         for member in [m for m in tifd.getmembers() if m.isfile()]:
             ifd = tifd.extractfile(member)
             if member.name.endswith("xml"):
+                print(member.name)
                 soup = BeautifulSoup(ifd, "xml")
                 for ca in soup.find_all("coded_answer"):
                     for p in ca.find_all("p"):
@@ -22,6 +24,7 @@ def loadCorpus(fname, sent_sep=True):
                             "annotations" : [],
                             "other_ided_ns": []
                         }
+                        """
                         for elem in p:
                             if elem.name == "NS" and elem.i and elem.c and elem["type"] in ["S", "SA", "SX"]:
                                 start = len(item["text"])
@@ -44,6 +47,43 @@ def loadCorpus(fname, sent_sep=True):
                                 elif elem.c:
                                     item["text"] += elem.c.text
                                     end = start + len(elem.c.text)
+                                item["other_ided_ns"].append({"start":start, "end":end})
+                            else:
+                                item["text"] += elem.text
+                            print(item["text"])
+                        yield item
+                        """
+                        for elem in p:
+                            if elem.name == "NS" and elem.i and elem.c and elem["type"] in ["S", "SA", "SX"]:
+                                all_i = elem.find_all("i")
+                                all_c = elem.find_all("c")
+                                #if len(all_i) > 0 and len(all_c) > 1:
+                                #    print(all_i[-1].text)
+                                #    print(all_c[-1].text)
+
+                                    #input()
+                                start = len(item["text"])
+                                end = start + len(all_i[-1].text)
+                                item["text"] += all_i[-1].text
+                                item["annotations"].append(
+                                    {
+                                        "start" : start,
+                                        "end" : end,
+                                        "standard" : all_c[-1].text,
+                                        "observed" : all_i[-1].text,
+                                        "ocr" : False
+                                    }
+                                )
+                            elif elem.name == "NS":
+                                start = len(item["text"])
+                                if elem.i:
+                                    all_i = elem.find_all("i")
+                                    item["text"] += all_i[-1].text
+                                    end = start + len(all_i[-1].text)
+                                elif elem.c:
+                                    all_c = elem.find_all("c")
+                                    item["text"] += all_c[-1].text
+                                    end = start + len(all_c[-1].text)
                                 item["other_ided_ns"].append({"start":start, "end":end})
                             else:
                                 item["text"] += elem.text
@@ -80,11 +120,14 @@ if __name__ == "__main__":
     parser.add_argument("--max_ld", dest="max_ld", type=int, default=3,  help="Max LD")
     args, rest = parser.parse_known_args()
 
-    brown_wn_tree = loadBrownWNCorpusTree()
+    #brown_wn_tree = loadBrownWNCorpusTree()
+    brown_tree = loadBrownCorpusTree()
+    #sw_tree = loadSWTree()
 
     with gzip.open(args.output_file, "wt") as ofd:
 
         for item in loadCorpus(args.input_file):
+            print(item["text"])
             offset = 0
             for sentence_match in re.finditer(r"(.+?(?:(?:(?:\.|\?|\!)\s+)|$))", item["text"], re.S):
                 sentence = sentence_match.group(1)
@@ -121,9 +164,8 @@ if __name__ == "__main__":
                                 "observed" : annotation["observed"].lower(),
                                 "standard" : annotation["standard"].lower(),
                                 "ocr" : annotation["ocr"],
-                                "alts": {a[1]: a[0] for a in brown_wn_tree.find(annotation["observed"].lower(), args.max_ld)}
-
-                                #"alts": {a[1]: a[0] for a in brown_tree.find(annotation["observed"].lower(), args.max_ld)} #if len(wn.synsets(a[1])) > 0}                     
+                                #"alts": {a[1]: a[0] for a in brown_wn_tree.find(annotation["observed"].lower(), args.max_ld)}
+                                "alts": {a[1]: a[0] for a in brown_tree.find(annotation["observed"].lower(), args.max_ld) if len(wn.synsets(a[1])) > 0 or a[1] in stopwords.words("english")}                     
 
                             }
                         )
