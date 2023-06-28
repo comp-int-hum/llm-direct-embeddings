@@ -34,16 +34,17 @@ import pickle
 vars = Variables("custom.py")
 vars.AddVariables(
     ("OUTPUT_WIDTH", "", 5000),
-    ("MODELS","",["google/canine-c", "bert-large-uncased", "roberta-large"]),
+    ("MODELS","",["google/canine-c", "bert-large-uncased", "roberta-large", "google/canine-s"]),
     ("LAYERS","",["last","last_four", "first_three", "middle"]),
     ("DATA_PATH", "", "corpora"),
-    ("DATASETS", "", ["mycorpus"]),#, "fce-released-dataset"]),
+    ("DATASETS", "", ["fce-released-dataset","mycorpus","gut_0_1"]),#["mycorpus", "fce-released-dataset", "gut_0_1"]),
     ("ALTERNATES_FILE","","data/britwords.csv"),
     ("CORPORA_DIR","","data"),
     ("RANDOM_STATE","", 10),
     ("NUM_CHUNKS","",50),
     ("MAX_LD","",3),
     ("DEVICE", "", "cpu"), # cpu or cuda
+    ("LDS_ANALYZE","",[2,3])
 )
 
 
@@ -85,14 +86,19 @@ env.AddBuilder(
 env.AddBuilder(
     "Pred",
     "scripts/pred.py",
-    "${SOURCES[0]} ${TARGETS[0]} --model_name ${MODEL_NAME} --layers ${LAYERS} --alternates_file ${ALTERNATES_FILE}"
-
+    "${SOURCES[0]} ${TARGETS[0]} --model_name ${MODEL_NAME} --layers ${LAYERS} --alternates_file ${ALTERNATES_FILE} --max_ld ${MAX_LD}"
     )
 
 env.AddBuilder(
     "PredictionSummary",
     "scripts/summarize_preds.py",
-    "${SOURCES} --accurate ${TARGETS[0]} --inaccurate ${TARGETS[1]} --summary ${TARGETS[2]} --layers ${LAYERS}"
+    "${SOURCES} --accurate ${TARGETS[0]} --inaccurate ${TARGETS[1]} --summary ${TARGETS[2]} --layers ${LAYERS} --ld ${LD}"
+)
+
+env.AddBuilder(
+        "PredictionCSVSummary",
+        "scripts/csv_summary.py",
+        "${SOURCES} --summary_out ${TARGETS[0]}"
 )
 
 
@@ -122,7 +128,9 @@ env.Decider("timestamp-newer")
 #chunk into X pieces for use with -j --jobs (so can implicitly multicore over x processors)
 #change to have a custom command line option that will force filebuilder instead of custom defined (to deal with graph )
 
+
 for dataset_name in env["DATASETS"]:
+    results_sums = []
     samples = env.LoadSamples(
         "work/${DATASET_NAME}.json.gz",
         "${DATA_PATH}/${DATASET_NAME}.tgz",
@@ -147,24 +155,28 @@ for dataset_name in env["DATASETS"]:
                 chunk_embed_dict[model_name].append(env.EmbedCanine("work/${DATASET_NAME}/${MODEL_NAME}/embeds/"+"chunk_embed"+str(c_i)+".json.gz",chunk,MODEL_NAME=model_name, LAYERS=["last"], DATASET_NAME=dataset_name))
             #elif model_name == "general_character_bert":
                 #chunk_embed_dict[model_name].append(env.EmbedCBert(embed_names,chunk,MODEL_NAME=model_name))
-    
-    pred_results = defaultdict(list)
-    for m_name, embeds in chunk_embed_dict.items():
-        for e_i,embed in enumerate(embeds):
-            pred_results[m_name].append(env.Pred("work/${DATASET_NAME}/${MODEL_NAME}/preds/chunk_pred"+str(e_i)+".json.gz", embed, MODEL_NAME=m_name, LAYERS=env["LAYERS"], DATASET_NAME=dataset_name))
 
-    results_sums = []
-    for m_name, results in pred_results.items():
-        if m_name in ["google/canine-c", "general_character_bert","google/canine-s"]:
-            results_sums.append(env.PredictionSummary([
-                "work/results/${DATASET_NAME}/${MODEL_NAME}_accurate.csv",
-                "work/results/${DATASET_NAME}/${MODEL_NAME}_inaccurate.csv",
-                "work/results/${DATASET_NAME}/${MODEL_NAME}_summary.txt"],
-                results, MODEL_NAME=m_name, DATASET_NAME=dataset_name, LAYERS="last"))
-        else:
-            for layer in env["LAYERS"]:
-                results_sums.append(env.PredictionSummary([
-                    "work/results/${DATASET_NAME}/${MODEL_NAME}_${LAYERS}_accurate.csv",
-                    "work/results/${DATASET_NAME}/${MODEL_NAME}_${LAYERS}_inaccurate.csv",
-                    "work/results/${DATASET_NAME}/${MODEL_NAME}_${LAYERS}_summary.txt"],
-                    results, MODEL_NAME=m_name, DATASET_NAME=dataset_name, LAYERS=layer))
+    pred_ld_results = defaultdict(lambda: defaultdict(list))
+    for max_ld in env["LDS_ANALYZE"]:
+        for m_name, embeds in chunk_embed_dict.items():
+            for e_i,embed in enumerate(embeds):
+                pred_ld_results[max_ld][m_name].append(env.Pred("work/${DATASET_NAME}/${MODEL_NAME}/preds/ld_${MAX_LD}/chunk_pred"+str(e_i)+".json.gz", embed, MODEL_NAME=m_name, LAYERS=env["LAYERS"], DATASET_NAME=dataset_name, MAX_LD=max_ld))
+
+
+    for ld, pred_results in pred_ld_results.items():
+        for m_name, results in pred_results.items():
+            if m_name in ["google/canine-c", "general_character_bert","google/canine-s"]:
+	            results_sums.append(env.PredictionSummary([
+                        "work/results/${DATASET_NAME}/${LD}/${MODEL_NAME}_accurate.csv",
+                        "work/results/${DATASET_NAME}/${LD}/${MODEL_NAME}_inaccurate.csv",
+                        "work/results/${DATASET_NAME}/${LD}/${MODEL_NAME}_summary.csv"],
+                        results, MODEL_NAME=m_name, DATASET_NAME=dataset_name, LAYERS="last", LD=ld))
+            else:
+                for layer in env["LAYERS"]:
+                    results_sums.append(env.PredictionSummary([
+                        "work/results/${DATASET_NAME}/${LD}/${MODEL_NAME}_${LAYERS}_accurate.csv",
+                        "work/results/${DATASET_NAME}/${LD}/${MODEL_NAME}_${LAYERS}_inaccurate.csv",
+                        "work/results/${DATASET_NAME}/${LD}/${MODEL_NAME}_${LAYERS}_summary.csv"],
+                        results, MODEL_NAME=m_name, DATASET_NAME=dataset_name, LAYERS=layer, LD=ld))
+
+    env.PredictionCSVSummary(["work/results/${DATASET_NAME}/summary.csv"], [s[2] for s in results_sums], DATASET_NAME=dataset_name)

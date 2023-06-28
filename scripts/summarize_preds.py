@@ -21,22 +21,29 @@ if __name__ == "__main__":
 	parser.add_argument("--inaccurate", dest="inaccurate", help="Inaccurate results")
 	parser.add_argument("--summary", dest="summary", help="Summary text file")
 	parser.add_argument("--layers", dest="layers")
+	parser.add_argument("--ld", default=3, help="max ld of the run")
 
 
 	args, rest = parser.parse_known_args()
 
+
 	with open(args.accurate,"wt",newline="") as accurate_out, open(args.inaccurate,"wt",newline="") as inaccurate_out:
 		accurate_writer = csv.writer(accurate_out, delimiter=",")
 		inaccurate_writer = csv.writer(inaccurate_out, delimiter=",")
-		accurate_writer.writerow(["observed", "standard", "alt", "CD", "LD", "acc", "alt_present", "other_ided_ns"])
-		inaccurate_writer.writerow(["observed", "standard", "alt", "CD", "LD", "acc", "alt_present", "other_ided_ns"])
+		accurate_writer.writerow(["observed", "standard", "alt", "CD", "LD", "acc", "alt_present", "total_ns_in_sample", "acc_permissive"])
+		inaccurate_writer.writerow(["observed", "standard", "alt", "CD", "LD", "acc", "alt_present", "total_ns_in_sample", "acc_permissive", "acc_alt_ld"])
 
 		sample_total = 0
 		in_alts_total = 0
 		correct_total = 0
 		inaccurate_not_in_alts = 0
+		inaccurate = 0
 		only_ns_total = 0
 		only_ns_accurate = 0
+		permissive_acc = 0
+		acc_model_only = 0
+		acc_permissive_model_only = 0
+		acc_permissive_single_model_only = 0
 		for chunk in args.chunk_results:
 			with gzip.open(chunk) as chunk_result:
 				for s_result in chunk_result:
@@ -47,7 +54,16 @@ if __name__ == "__main__":
 							only_ns_total += 1
 						in_alts_total += annotation["alt_present"]
 						row = [annotation["observed"], annotation["standard"], annotation["final_pred"][args.layers]["alt"], 
-							annotation["final_pred"][args.layers]["CD"], annotation["final_pred"][args.layers]["LD"], int(annotation["final_pred"][args.layers]["acc"]), annotation["alt_present"], annotation["other_ided_ns"]]
+							annotation["final_pred_model_only"][args.layers]["CD"], annotation["final_pred_model_only"][args.layers]["LD"], int(annotation["final_pred_model_only"][args.layers]["acc"]), annotation["alt_present"], annotation["total_ns_in_sample"], annotation["final_pred_model_only"][args.layers]["acc_permissive"]]
+
+						if annotation["final_pred_model_only"][args.layers]["acc_permissive"]:
+							acc_permissive_model_only+=1
+						if annotation["final_pred"][args.layers]["acc_permissive"]:
+							permissive_acc += 1
+							if int(annotation["total_ns_in_sample"]) == 1:
+								acc_permissive_single_model_only += 1
+						if annotation["final_pred_model_only"][args.layers]["acc"]:
+							acc_model_only += 1
 
 						if annotation["final_pred"][args.layers]["acc"]:
 							correct_total += 1
@@ -55,35 +71,29 @@ if __name__ == "__main__":
 								only_ns_accurate += 1
 							accurate_writer.writerow(row)
 						else:
-							inaccurate_writer.writerow(row)
 							if annotation["alt_present"] == 0:
 								inaccurate_not_in_alts += 1
+							else:
+								try:
+									row.append(annotation["preds"][annotation["standard"]][args.layers]["LD"])
+								except KeyError:
+									pass
+							inaccurate_writer.writerow(row)
 
-		with open(args.summary,"wt") as summary_out:
-			summary_out.write("Num accurate: " + str(correct_total) + "\n")
-			summary_out.write("Num inaccurate: " + str(sample_total-correct_total) + "\n")
-			summary_out.write("Accuracy: " + str(float(correct_total)/sample_total) + "\n")
-			summary_out.write("Observed in alts percentage: " + str(float(in_alts_total)/sample_total) + "\n")
-			summary_out.write("Inaccurate and not observed in alts: " + str(inaccurate_not_in_alts) + "\n")
-			summary_out.write("Accuracy single NS " + str(float(only_ns_accurate)/only_ns_total) + "\n")
-		
-
-		"""
-		lsets = []
-		for layer in args.layers:
-			lsets += [layer+"_alt", layer+"_CD",layer+"_LD",layer+"_acc"]
-		csvwriter.writerow(["observed","standard"] + lsets)
-		for chunk in args.chunk_results:
-			with gzip.open(chunk) as chunk_result:
-				for s_result in chunk_result:
-					s_result = json.loads(s_result)
-					for annotation in s_result:
-						base = [annotation["observed"], annotation["standard"]]
-						for layer in args.layers:
-							base.append(annotation["final_pred"][layer]["alt"])
-							base.append(annotation["final_pred"][layer]["CD"])
-							base.append(annotation["final_pred"][layer]["LD"])
-							base.append(int(annotation["final_pred"][layer]["acc"]))
-						csvwriter.writerow(base)
-
-		"""
+		n_inaccurate = sample_total-correct_total
+		accuracy = float(correct_total)/sample_total
+		observed_in_alts_per = float(in_alts_total)/sample_total
+		accuracy_alt_present = float(correct_total)/(sample_total-inaccurate_not_in_alts)
+		stem_acc = float(permissive_acc)/sample_total
+		stem_acc_alt_present = float(permissive_acc)/(sample_total-inaccurate_not_in_alts)
+		with open(args.summary,"wt", newline="") as summary_out:
+			sw = csv.writer(summary_out)
+			sw.writerow(["Model", "Max LD", "N", "n_Acc", "n_Inacc", "Accuracy", "In alts %", "Inacc not in alts", "Acc alt present",
+                                     "Acc 1ns", "N 1ns", "Stemmed acc", "Stemmed acc alt present", "Acc only model"])
+			sw.writerow([args.summary, args.ld, sample_total, (sample_total - n_inaccurate), n_inaccurate,
+				     accuracy, observed_in_alts_per,
+				     inaccurate_not_in_alts,
+				     accuracy_alt_present,float(only_ns_accurate)/only_ns_total,
+				     only_ns_total, stem_acc,
+				     stem_acc_alt_present,
+				     float(acc_model_only)/sample_total])
