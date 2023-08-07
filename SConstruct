@@ -34,17 +34,18 @@ import pickle
 vars = Variables("custom.py")
 vars.AddVariables(
     ("OUTPUT_WIDTH", "", 5000),
-    ("MODELS","",["google/canine-c", "bert-large-uncased", "roberta-large", "google/canine-s"]),
-    ("LAYERS","",["last","last_four", "first_three", "middle"]),
+    ("MODELS","",["google/canine-c", "google/canine-s", "bert-large-uncased"]), #"bert-large-uncased", "roberta-large", "google/canine-s"]),
+    ("LAYERS","",["last", "last_four"]),#,"last_four", "first_three", "middle"]),
     ("DATA_PATH", "", "corpora"),
-    ("DATASETS", "", ["fce-released-dataset","mycorpus","gut_0_1"]),#["mycorpus", "fce-released-dataset", "gut_0_1"]),
+    ("DATASETS", "", ["gut_0_1", "mycorpus", "fce-released-dataset"]),#["mycorpus", "fce-released-dataset", "gut_0_1"]),
     ("ALTERNATES_FILE","","data/britwords.csv"),
     ("CORPORA_DIR","","data"),
     ("RANDOM_STATE","", 10),
     ("NUM_CHUNKS","",50),
     ("MAX_LD","",3),
     ("DEVICE", "", "cpu"), # cpu or cuda
-    ("LDS_ANALYZE","",[2,3])
+    ("LDS_ANALYZE","",[3]),
+    ("CUSTOM_LD","",True)
 )
 
 
@@ -55,7 +56,7 @@ env = Environment(variables=vars, ENV=os.environ, TARFLAGS="-c -z", TARSUFFIX=".
 env.AddBuilder(
     "LoadSamples",
     "scripts/load_samples.py",
-    "--input_file ${SOURCES[0]} --output_file ${TARGETS[0]} --max_ld ${MAX_LD}",
+    "--input_file ${SOURCES[0]} --output_file ${TARGETS[0]} --max_ld ${MAX_LD} --custom_ld ${CUSTOM_LD}",
 )
 
 env.AddBuilder(
@@ -132,9 +133,10 @@ env.Decider("timestamp-newer")
 for dataset_name in env["DATASETS"]:
     results_sums = []
     samples = env.LoadSamples(
-        "work/${DATASET_NAME}.json.gz",
+        "work/${DATASET_NAME}_custom_${CUSTOM_LD}.json.gz",
         "${DATA_PATH}/${DATASET_NAME}.tgz",
-        DATASET_NAME=dataset_name
+        DATASET_NAME=dataset_name,
+	CUSTOM_LD=env["CUSTOM_LD"]
     )
     chunks = env.SplitToChunks(
         ["work/${{DATASET_NAME}}_chunk_{}.json.gz".format(i) for i in range(env["NUM_CHUNKS"])],
@@ -160,7 +162,7 @@ for dataset_name in env["DATASETS"]:
     for max_ld in env["LDS_ANALYZE"]:
         for m_name, embeds in chunk_embed_dict.items():
             for e_i,embed in enumerate(embeds):
-                pred_ld_results[max_ld][m_name].append(env.Pred("work/${DATASET_NAME}/${MODEL_NAME}/preds/ld_${MAX_LD}/chunk_pred"+str(e_i)+".json.gz", embed, MODEL_NAME=m_name, LAYERS=env["LAYERS"], DATASET_NAME=dataset_name, MAX_LD=max_ld))
+                pred_ld_results[max_ld][m_name].append(env.Pred("work/${DATASET_NAME}/${MODEL_NAME}/preds/ld_${MAX_LD}_custom_${CUSTOM_LD}/chunk_pred"+str(e_i)+".json.gz", embed, MODEL_NAME=m_name, LAYERS=env["LAYERS"], DATASET_NAME=dataset_name, MAX_LD=max_ld, CUSTOM_LD=str(env["CUSTOM_LD"])))
 
 
     for ld, pred_results in pred_ld_results.items():
@@ -169,14 +171,14 @@ for dataset_name in env["DATASETS"]:
 	            results_sums.append(env.PredictionSummary([
                         "work/results/${DATASET_NAME}/${LD}/${MODEL_NAME}_accurate.csv",
                         "work/results/${DATASET_NAME}/${LD}/${MODEL_NAME}_inaccurate.csv",
-                        "work/results/${DATASET_NAME}/${LD}/${MODEL_NAME}_summary.csv"],
-                        results, MODEL_NAME=m_name, DATASET_NAME=dataset_name, LAYERS="last", LD=ld))
+                        "work/results/${DATASET_NAME}/${LD}_custom_${CUSTOM}/${MODEL_NAME}_summary.csv"],
+                        results, MODEL_NAME=m_name, DATASET_NAME=dataset_name, LAYERS="last", LD=ld, CUSTOM=str(env["CUSTOM_LD"])))
             else:
                 for layer in env["LAYERS"]:
                     results_sums.append(env.PredictionSummary([
                         "work/results/${DATASET_NAME}/${LD}/${MODEL_NAME}_${LAYERS}_accurate.csv",
                         "work/results/${DATASET_NAME}/${LD}/${MODEL_NAME}_${LAYERS}_inaccurate.csv",
-                        "work/results/${DATASET_NAME}/${LD}/${MODEL_NAME}_${LAYERS}_summary.csv"],
-                        results, MODEL_NAME=m_name, DATASET_NAME=dataset_name, LAYERS=layer, LD=ld))
+                        "work/results/${DATASET_NAME}/${LD}_custom_${CUSTOM}/${MODEL_NAME}_${LAYERS}_summary.csv"],
+                        results, MODEL_NAME=m_name, DATASET_NAME=dataset_name, LAYERS=layer, LD=ld, CUSTOM=str(env["CUSTOM_LD"])))
 
-    env.PredictionCSVSummary(["work/results/${DATASET_NAME}/summary.csv"], [s[2] for s in results_sums], DATASET_NAME=dataset_name)
+    env.PredictionCSVSummary(["work/results/${DATASET_NAME}/summary_custom_${CUSTOM}.csv"], [s[2] for s in results_sums], DATASET_NAME=dataset_name, CUSTOM=str(env["CUSTOM_LD"]))

@@ -12,6 +12,7 @@ import jellyfish
 from collections import Counter
 
 from bs4 import BeautifulSoup
+from .ld import custom_ld
 
 def loadJsonCorpusDf(corpus_in, sent_sep=True):
 	initial_res = []
@@ -92,21 +93,9 @@ def loadBrownWNCorpusTree():
 def loadSWTree():
 	return pybktree.BKTree(jellyfish.levenshtein_distance, [w for w in stopwords("english")])
 
+def loadBrownCustomTree():
+	corpus_dictionary = Counter([word.lower() for word in brown.words() if word.isalpha() and not word[0].isupper()])
+	corpus_dictionary = [w for w,c in corpus_dictionary.items() if c > 0]
+	return pybktree.BKTree(custom_ld.levenshtein, corpus_dictionary)
 
-"""
-def maskSample(row, f_t=None, max_tokens = 512, truncation_length=250):
-	#print(row["sample"][row["i"]: row["i"]+len(row["NS"])])
-	modified_sample = row["sample"][0:row["i"]] + f_t.mask_token +  row["sample"][row["i"]+len(row["NS"]):]
-	#print(modified_sample)
-	modified_tokenized = f_t(modified_sample).input_ids[1:-1]
-	
 
-	mask_index = modified_tokenized.index(f_t.mask_token_id)
-	if len(modified_tokenized) > max_tokens:
-		if mask_index < truncation_length:
-			modified_tokenized = modified_tokenized[0:mask_index+truncation_length]
-		else:
-			modified_tokenized = modified_tokenized[mask_index-truncation_length:mask_index+truncation_length]
-
-	return f_t.decode(modified_tokenized)
-"""

@@ -55,7 +55,7 @@ if __name__ == "__main__":
 	parser.add_argument("--layers", nargs="+", dest="layers", help="Layers")
 	parser.add_argument("--alternates_file", dest="alternates_file", help="A 2 column CSV file of alternate (say brit/us english) correct spellings")
 	parser.add_argument("--max_ld", type=int, default=3, help="Max ld for prediction, up to 3")
-	parser.add_argument("--ignore_an", type=bool, default=True)
+	parser.add_argument("--ignore_an", type=bool, default=False)
 
 	args, rest = parser.parse_known_args()
 

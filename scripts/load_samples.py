@@ -4,7 +4,7 @@ import gzip
 import json
 import tarfile
 from bs4 import BeautifulSoup
-from utility.corpus_utils import loadBrownCorpusTree, loadBrownWNCorpusTree, loadSWTree
+from utility.corpus_utils import loadBrownCorpusTree, loadBrownWNCorpusTree, loadSWTree, loadBrownCustomTree
 from nltk.corpus import stopwords
 
 from nltk.corpus import wordnet as wn
@@ -24,35 +24,6 @@ def loadCorpus(fname, sent_sep=True):
                             "annotations" : [],
                             "other_ided_ns": []
                         }
-                        """
-                        for elem in p:
-                            if elem.name == "NS" and elem.i and elem.c and elem["type"] in ["S", "SA", "SX"]:
-                                start = len(item["text"])
-                                end = start + len(elem.i.text)
-                                item["text"] += elem.i.text
-                                item["annotations"].append(
-                                    {
-                                        "start" : start,
-                                        "end" : end,
-                                        "standard" : elem.c.text,
-                                        "observed" : elem.i.text,
-                                        "ocr" : False
-                                    }
-                                )
-                            elif elem.name == "NS":
-                                start = len(item["text"])
-                                if elem.i:
-                                    item["text"] += elem.i.text
-                                    end = start + len(elem.i.text)
-                                elif elem.c:
-                                    item["text"] += elem.c.text
-                                    end = start + len(elem.c.text)
-                                item["other_ided_ns"].append({"start":start, "end":end})
-                            else:
-                                item["text"] += elem.text
-                            print(item["text"])
-                        yield item
-                        """
                         for elem in p:
                             if elem.name == "NS" and elem.i and elem.c and elem["type"] in ["S", "SA", "SX"]:
                                 all_i = elem.find_all("i")
@@ -118,10 +89,11 @@ if __name__ == "__main__":
     parser.add_argument("--input_file", dest="input_file",  help="Input file")
     parser.add_argument("--output_file", dest="output_file",  help="Output file")
     parser.add_argument("--max_ld", dest="max_ld", type=int, default=3,  help="Max LD")
+    parser.add_argument("--custom_ld", type=bool, default=False, help="use weighted LD")
     args, rest = parser.parse_known_args()
 
     #brown_wn_tree = loadBrownWNCorpusTree()
-    brown_tree = loadBrownCorpusTree()
+    brown_tree = loadBrownCorpusTree() if not args.custom_ld else loadBrownCustomTree()
     #sw_tree = loadSWTree()
 
     with gzip.open(args.output_file, "wt") as ofd:
