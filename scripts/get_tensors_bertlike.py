@@ -1,7 +1,7 @@
 import argparse
 import sys
 import torch
-from utility.corpus_utils import maskSample
+from utility.corpus_utils import maskSample, genOCRError
 from utility.pred_utils import fetchMaxCSandMinEucinMaxLD, LAYER_LOOKUP
 
 from transformers import AutoModel, AutoTokenizer
@@ -14,7 +14,7 @@ import tarfile
 
 import math
 
-
+import nlpaug.augmenter.char as nac
 
 
 log_format = "%(asctime)s::%(filename)s::%(message)s"
@@ -60,20 +60,10 @@ if __name__ == "__main__":
 
     device = torch.device(args.device)
 
-    #RETURN SIZE HANDLING
-  #  nsors_bertlike.py", line 153, in <module>
- #   outputs = get_hidden_states(
- # File "/home/messner1/llm-direct-embeddings/scripts/get_tensors_bertlike.py", line 28, in get_hidden_states
- #   output = model(**{k : v.to(device) for k, v in encoded.items()})
- # File "/home/messner1/llm-direct-embeddings/local/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1110, in _call_impl
- #   return forward_call(*input, **kwargs)
- # File "/home/messner1/llm-direct-embeddings/local/lib/python3.9/site-packages/transformers/models/bert/modeling_bert.py", line 962, in forward
- #   buffered_token_type_ids_expanded = buffered_token_type_ids.expand(batch_size, seq_length)
-#RuntimeError: The expanded size of the tensor (637) must match the existing size (512) at non-singleton dimension 1. 
-
 #make sure to include N alternatives in prediction summaries
 
     logging.info("Loading model...")
+    aug = nac.OcrAug()
     a_t = AutoTokenizer.from_pretrained(args.model_name)
     model = AutoModel.from_pretrained(args.model_name, output_hidden_states=True)
     model.to(device)
@@ -115,9 +105,21 @@ if __name__ == "__main__":
                     add_special_tokens=False
                 )
 
+                reverse_encoded = a_t.encode(
+                    annotation["standard"][::-1],
+                    add_special_tokens = False
+                )
+
+                error_encoded = a_t.encode(
+                    aug.augment(annotation["standard"])[0],
+                    #genOCRError(annotation["standard"]),
+                    add_special_tokens = False)
+
                 alt_lens = [len(a_e) for a_e in alts_encoded]
                 alt_lens.append(len(orig_ns_encoded))
                 alt_lens.append(len(ground_encoded))
+                alt_lens.append(len(reverse_encoded))
+                alt_lens.append(len(error_encoded))
                 max_alt_len = max(alt_lens) if len(alt_lens) > 0 else 0
 
 
@@ -187,6 +189,35 @@ if __name__ == "__main__":
                 inputs["input_ids"].append(ground_prepared["input_ids"].tolist())
                 inputs["attention_mask"].append(ground_prepared["attention_mask"].tolist())
 
+                reverse_inserted_ids, reverse_index_range = insert_alt_id_at_mask(
+                    reverse_encoded,
+                    encoded,
+                    mask_index
+                )
+                reverse_prepared = a_t.prepare_for_model(
+                    ids = reverse_inserted_ids,
+                    return_tensors = "pt",
+                    prepend_batch_axis = False
+                )
+                index_ranges.append(reverse_index_range)
+                inputs["input_ids"].append(reverse_prepared["input_ids"].tolist())
+                inputs["attention_mask"].append(reverse_prepared["attention_mask"].tolist())
+
+                error_inserted_ids, error_index_range = insert_alt_id_at_mask(
+                    error_encoded,
+                    encoded,
+                    mask_index
+                )
+                error_prepared = a_t.prepare_for_model(
+                    ids = error_inserted_ids,
+                    return_tensors = "pt",
+                    prepend_batch_axis = False
+                )
+                index_ranges.append(error_index_range)
+                inputs["input_ids"].append(error_prepared["input_ids"].tolist())
+                inputs["attention_mask"].append(error_prepared["attention_mask"].tolist())
+
+
                 lds = []
                 for alt in annotation["alts"]:
                     lds.append(annotation["alts"][alt])
@@ -217,13 +248,15 @@ if __name__ == "__main__":
                 )
                 json_sample["annotations"][i]["observed_embeddings"] = outputs[0]
                 json_sample["annotations"][i]["standard_embeddings"] = outputs[1] #assume needed change
+                json_sample["annotations"][i]["reverse_embeddings"] = outputs[2]
+                json_sample["annotations"][i]["error_embeddings"] = outputs[3]
 
                 
                 json_sample["annotations"][i]["alts"] = {
                     alt : {"embed": emb, "LD": ld} for alt, emb, ld in zip(
                         json_sample["annotations"][i]["alts"],
                         #[outputs[j] for j in range(len(outputs) - 2)] #same
-                        [outputs[j] for j in range(2, len(outputs))],
+                        [outputs[j] for j in range(3, len(outputs))],
                         lds
                     )
                 }                                 

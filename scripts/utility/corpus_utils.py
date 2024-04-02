@@ -98,4 +98,14 @@ def loadBrownCustomTree():
 	corpus_dictionary = [w for w,c in corpus_dictionary.items() if c > 0]
 	return pybktree.BKTree(custom_ld.levenshtein, corpus_dictionary)
 
+def genOCRError(orig):
+        if "s" in orig:
+                return orig.replace("s", "5", 1)
+        if "o" in orig:
+                return orig.replace("o", "0", 1)
+        if "n" in orig:
+                return orig.replace("n", "h", 1)
+        orig = "l"+orig[1:]
+        return orig
+
 

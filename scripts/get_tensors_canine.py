@@ -2,7 +2,7 @@ import argparse
 import sys
 import torch
 from utility.pred_utils import LAYER_LOOKUP
-
+from utility.corpus_utils import genOCRError
 from transformers import CanineModel, CanineTokenizer
 
 import os
@@ -11,14 +11,13 @@ import logging
 import json
 import gzip
 
-
+import nlpaug.augmenter.char as nac
 
 log_format = "%(asctime)s::%(filename)s::%(message)s"
 
 logging.basicConfig(level='INFO', format=log_format)
 
 
-#combine embeddings? Train over known ground and created composites?
 
 def get_hidden_states(encoded, start_index, char_end_indices, model, layers, layer_names, device):
     with torch.no_grad():
@@ -60,6 +59,7 @@ if __name__ == "__main__":
     device = torch.device(args.device)
 
     logging.info("Loading model...")
+    aug = nac.OcrAug()
     model = CanineModel.from_pretrained(args.model_name,output_hidden_states=True)
     t_c = CanineTokenizer.from_pretrained(args.model_name)
     layers = [LAYER_LOOKUP[l] for l in args.layers]
@@ -85,8 +85,10 @@ if __name__ == "__main__":
                 
 
                 ground_inserted, g_i_e_i = insert_alt_seq_at_index(json_sample["text"], annotation["standard"], annotation["start"], annotation["end"])
-                inputs = [json_sample["text"], ground_inserted]
-                end_indices = [annotation["end"]+1, g_i_e_i+1] #CLS token
+                reverse_inserted, r_i_e_i = insert_alt_seq_at_index(json_sample["text"], annotation["standard"][::-1], annotation["start"], annotation["end"])
+                error_inserted, e_i_e_i = insert_alt_seq_at_index(json_sample["text"], aug.augment(annotation["standard"])[0], annotation["start"], annotation["end"])
+                inputs = [json_sample["text"], ground_inserted, reverse_inserted, error_inserted]
+                end_indices = [annotation["end"]+1, g_i_e_i+1, r_i_e_i+1, e_i_e_i+1] #CLS token
 
                 lds = []
                 for alt in annotation["alts"]:
@@ -108,11 +110,13 @@ if __name__ == "__main__":
 
                 json_sample["annotations"][i]["observed_embeddings"] = outputs[0]
                 json_sample["annotations"][i]["standard_embeddings"] = outputs[1]
+                json_sample["annotations"][i]["reverse_embeddings"] = outputs[2]
+                json_sample["annotations"][i]["error_embeddings"] = outputs[3]
 
                 json_sample["annotations"][i]["alts"] = {
                     alt : {"embed": emb, "LD": ld} for alt, emb, ld in zip(
                         json_sample["annotations"][i]["alts"],
-                        [outputs[j] for j in range(2,len(outputs))],
+                        [outputs[j] for j in range(3,len(outputs))],
                         lds
                     )
                 }

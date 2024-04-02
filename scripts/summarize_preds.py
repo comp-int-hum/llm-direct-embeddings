@@ -31,8 +31,12 @@ if __name__ == "__main__":
 		accurate_writer = csv.writer(accurate_out, delimiter=",")
 		inaccurate_writer = csv.writer(inaccurate_out, delimiter=",")
 		accurate_writer.writerow(["observed", "standard", "alt", "CD", "LD", "acc", "alt_present", "total_ns_in_sample", "acc_permissive"])
-		inaccurate_writer.writerow(["observed", "standard", "alt", "CD", "LD", "acc", "alt_present", "total_ns_in_sample", "acc_permissive", "acc_alt_ld"])
+		inaccurate_writer.writerow(["observed", "standard", "alt", "CD", "LD", "acc", "alt_present", "total_ns_in_sample", "acc_permissive", "acc_alt_ld", "standard_rank", "standard_rank_present_only"])
 
+		running_mrr = 0
+		running_mrr_in_alts = 0
+		running_mrr_mo = 0
+		running_mrr_mo_in_alts = 0
 		sample_total = 0
 		in_alts_total = 0
 		correct_total = 0
@@ -50,6 +54,10 @@ if __name__ == "__main__":
 					s_result = json.loads(s_result)
 					for annotation in s_result:
 						sample_total += 1
+						running_mrr += (1/annotation["std_ranks"][args.layers]) if annotation["std_ranks"][args.layers] != 0 else 0
+						running_mrr_mo += (1/annotation["mo_std_ranks"][args.layers]) if annotation["mo_std_ranks"][args.layers] != 0 else 0
+						running_mrr_mo_in_alts += (1/annotation["mo_std_ranks"][args.layers]) if (annotation["mo_std_ranks"][args.layers] != 0 and annotation["alt_present"] == 1) else 0
+						running_mrr_in_alts += (1/annotation["std_ranks"][args.layers]) if (annotation["std_ranks"][args.layers] != 0 and annotation["alt_present"] == 1) else 0
 						if int(annotation["total_ns_in_sample"]) == 1:
 							only_ns_total += 1
 						in_alts_total += annotation["alt_present"]
@@ -78,6 +86,7 @@ if __name__ == "__main__":
 									row.append(annotation["preds"][annotation["standard"]][args.layers]["LD"])
 								except KeyError:
 									pass
+							row.append(annotation["std_ranks"][args.layers])
 							inaccurate_writer.writerow(row)
 
 		n_inaccurate = sample_total-correct_total
@@ -88,12 +97,17 @@ if __name__ == "__main__":
 		stem_acc_alt_present = float(permissive_acc)/(sample_total-inaccurate_not_in_alts)
 		with open(args.summary,"wt", newline="") as summary_out:
 			sw = csv.writer(summary_out)
-			sw.writerow(["Model", "Max LD", "N", "n_Acc", "n_Inacc", "Accuracy", "In alts %", "Inacc not in alts", "Acc alt present",
-                                     "Acc 1ns", "N 1ns", "Stemmed acc", "Stemmed acc alt present", "Acc only model"])
+			sw.writerow(["Model", "Max LD", "N", "n_Acc", "n_Inacc", "Accuracy", "MRR", "MRR_standard_present", "In alts %", "Inacc not in alts", "Acc alt present", "Acc 1ns", "N 1ns", "Stemmed acc", "Stemmed acc alt present", "Acc only model", "MRR model only", "MRR model only acc present"])
 			sw.writerow([args.summary, args.ld, sample_total, (sample_total - n_inaccurate), n_inaccurate,
-				     accuracy, observed_in_alts_per,
+				     accuracy,
+				     running_mrr/sample_total,
+				     running_mrr_in_alts/in_alts_total,
+				     observed_in_alts_per,
 				     inaccurate_not_in_alts,
 				     accuracy_alt_present,float(only_ns_accurate)/only_ns_total,
 				     only_ns_total, stem_acc,
 				     stem_acc_alt_present,
-				     float(acc_model_only)/sample_total])
+				     float(acc_model_only)/sample_total,
+				     running_mrr_mo/sample_total,
+				     running_mrr_mo_in_alts/in_alts_total])
+			

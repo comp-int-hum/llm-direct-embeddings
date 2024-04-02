@@ -34,73 +34,81 @@ import pickle
 vars = Variables("custom.py")
 vars.AddVariables(
     ("OUTPUT_WIDTH", "", 5000),
-    ("MODELS","",["google/canine-c", "google/canine-s", "bert-large-uncased"]), #"bert-large-uncased", "roberta-large", "google/canine-s"]),
-    ("LAYERS","",["last", "last_four"]),#,"last_four", "first_three", "middle"]),
-    ("DATA_PATH", "", "corpora"),
-    ("DATASETS", "", ["gut_0_1", "mycorpus", "fce-released-dataset"]),#["mycorpus", "fce-released-dataset", "gut_0_1"]),
+    ("MODELS","",["google/canine-c", "bert-large-uncased"]), #"bert-large-uncased", "roberta-large", "google/canine-s"]),
+    ("LAYERS","",["last_four"]),#,"last, last_four", "first_three", "middle"]),
+    ("DATA_PATH", "", "../corpora/orthocorpus.tar.gz"),
+    ("DATASETS", "", ["HT_Prose_0_2", "GB_0_2"]),#["FCE-Subset", "GB_0_2", "HT_Prose_0_2"]),
     ("ALTERNATES_FILE","","data/britwords.csv"),
     ("CORPORA_DIR","","data"),
     ("RANDOM_STATE","", 10),
-    ("NUM_CHUNKS","",50),
-    ("MAX_LD","",3),
-    ("DEVICE", "", "cpu"), # cpu or cuda
-    ("LDS_ANALYZE","",[3]),
-    ("CUSTOM_LD","",True)
+    ("NUM_CHUNKS","",25),
+    ("MAX_LD","", 2),
+    ("DEVICE", "", "cuda"), # cpu or cuda
+    ("LDS_ANALYZE","",[2]),
+    ("CUSTOM_LD","",0),
+    ("USE_GRID","",False)
 )
 
 
-env = Environment(variables=vars, ENV=os.environ, TARFLAGS="-c -z", TARSUFFIX=".tgz",
-                  tools=["default", steamroller.generate],
+env = Environment(variables=vars, ENV=os.environ, #TARFLAGS="-c -z", TARSUFFIX=".tgz",
+    #tools=["default", steamroller.generate]
+    tools = [steamroller.generate],
+    BUILDERS = {
+	"LoadSamples" : Builder(action="python scripts/load_samples.py --input_file ${SOURCES[0]} --output_file ${TARGETS[0]} --max_ld ${MAX_LD} --custom_ld ${CUSTOM_LD} --dataset_name ${DATASET_NAME}"),
+	"SplitToChunks" : Builder(action="python scripts/split_sample_chunks.py --input_file ${SOURCES[0]} --output_files ${TARGETS}"),
+	"EmbedBertlike" : Builder(action="python scripts/get_tensors_bertlike.py ${SOURCES[0]} ${TARGETS[0]} --model ${MODEL_NAME} --layers ${LAYERS} --device ${DEVICE}"),
+	"EmbedCanine" : Builder(action="python scripts/get_tensors_canine.py ${SOURCES[0]} ${TARGETS[0]} --model ${MODEL_NAME} --layers ${LAYERS} --device ${DEVICE}")
+	}
 )
 
-env.AddBuilder(
-    "LoadSamples",
-    "scripts/load_samples.py",
-    "--input_file ${SOURCES[0]} --output_file ${TARGETS[0]} --max_ld ${MAX_LD} --custom_ld ${CUSTOM_LD}",
-)
+#env.AddBuilder(
+#    "LoadSamples",
+#    "scripts/load_samples.py",
+#    "--input_file ${SOURCES[0]} --output_file ${TARGETS[0]} --max_ld ${MAX_LD} --custom_ld ${CUSTOM_LD} --dataset_name ${DATASET_NAME}",
+#)
 
-env.AddBuilder(
-    "SplitToChunks",
-    "scripts/split_sample_chunks.py",
-    "--input_file ${SOURCES[0]} --output_files ${TARGETS}"
-    )
+#env.AddBuilder(
+#    "SplitToChunks",
+#    "scripts/split_sample_chunks.py",
+#    "--input_file ${SOURCES[0]} --output_files ${TARGETS}"
+#    )
 
-env.AddBuilder(
-    "EmbedBertlike",
-    "scripts/get_tensors_bertlike.py",
-    "${SOURCES[0]} ${TARGETS[0]} --model ${MODEL_NAME} --layers ${LAYERS} --device ${DEVICE}"
-)
+#env.AddBuilder(
+#    "EmbedBertlike",
+#    "scripts/get_tensors_bertlike.py",
+#    "${SOURCES[0]} ${TARGETS[0]} --model ${MODEL_NAME} --layers ${LAYERS} --device ${DEVICE}"
+#)
 
 
-env.AddBuilder(
-    "EmbedCanine",
-    "scripts/get_tensors_canine.py",
-    "${SOURCES[0]} ${TARGETS[0]} --model ${MODEL_NAME} --layers ${LAYERS} --device ${DEVICE}"
-    )
+#env.AddBuilder(
+#    "EmbedCanine",
+#    "scripts/get_tensors_canine.py",
+#    "${SOURCES[0]} ${TARGETS[0]} --model ${MODEL_NAME} --layers ${LAYERS} --device ${DEVICE}"
+#    )
 
-env.AddBuilder(
-    "EmbedCBert",
-    "scripts/get_tensors_cbert.py",
-    "${SOURCES} --model ${MODEL_NAME} --embeddings_out ${TARGETS}"
-    )
+#env.AddBuilder(
+#    "EmbedCBert",
+#    "scripts/get_tensors_cbert.py",
+#    "${SOURCES} --model ${MODEL_NAME} --embeddings_out ${TARGETS}"
+#    )
 
-env.AddBuilder(
-    "Pred",
-    "scripts/pred.py",
-    "${SOURCES[0]} ${TARGETS[0]} --model_name ${MODEL_NAME} --layers ${LAYERS} --alternates_file ${ALTERNATES_FILE} --max_ld ${MAX_LD}"
-    )
+#env.AddBuilder(
+#    "Pred",
+#    "scripts/pred.py",
+#    "${SOURCES[0]} ${TARGETS[0]} --model_name ${MODEL_NAME} --layers ${LAYERS} --alternates_file ${ALTERNATES_FILE} --max_ld ${MAX_LD}"
+#    )
 
-env.AddBuilder(
-    "PredictionSummary",
-    "scripts/summarize_preds.py",
-    "${SOURCES} --accurate ${TARGETS[0]} --inaccurate ${TARGETS[1]} --summary ${TARGETS[2]} --layers ${LAYERS} --ld ${LD}"
-)
+#env.AddBuilder(
+#    "PredictionSummary",
+#    "scripts/summarize_preds.py",
+#    "${SOURCES} --accurate ${TARGETS[0]} --inaccurate ${TARGETS[1]} --summary ${TARGETS[2]} --layers ${LAYERS} --ld ${LD}"
+#)
 
-env.AddBuilder(
-        "PredictionCSVSummary",
-        "scripts/csv_summary.py",
-        "${SOURCES} --summary_out ${TARGETS[0]}"
-)
+#env.AddBuilder(
+#        "PredictionCSVSummary",
+#        "scripts/csv_summary.py",
+#        "${SOURCES} --summary_out ${TARGETS[0]}"
+#)
 
 
 # function for width-aware printing of commands
@@ -118,13 +126,6 @@ env.Decider("timestamp-newer")
 
 
 
-#blowing up the depenedency graph -- going to have to go back to chunk files rather than logically collected chunks of individual files
-#still good to have pushed the layers stuff out
-#should simplify loading
-#so chunk script, with files = nchunks as out, corpus as in
-#iterate chunks
-
-
 
 #chunk into X pieces for use with -j --jobs (so can implicitly multicore over x processors)
 #change to have a custom command line option that will force filebuilder instead of custom defined (to deal with graph )
@@ -134,14 +135,16 @@ for dataset_name in env["DATASETS"]:
     results_sums = []
     samples = env.LoadSamples(
         "work/${DATASET_NAME}_custom_${CUSTOM_LD}.json.gz",
-        "${DATA_PATH}/${DATASET_NAME}.tgz",
+        #"${DATA_PATH}/${DATASET_NAME}.tgz",
+	"${DATA_PATH}",
         DATASET_NAME=dataset_name,
-	CUSTOM_LD=env["CUSTOM_LD"]
+	CUSTOM_LD= env["CUSTOM_LD"]
     )
     chunks = env.SplitToChunks(
-        ["work/${{DATASET_NAME}}_chunk_{}.json.gz".format(i) for i in range(env["NUM_CHUNKS"])],
+        ["work/${{DATASET_NAME}}_custom_${{CUSTOM_LD}}_chunk_{}.json.gz".format(i) for i in range(env["NUM_CHUNKS"])],
         samples,
-        DATASET_NAME=dataset_name
+        DATASET_NAME=dataset_name,
+	CUSTOM_LD = env["CUSTOM_LD"]
     )
 
 
@@ -151,18 +154,17 @@ for dataset_name in env["DATASETS"]:
     for c_i,chunk in enumerate(chunks):
         for model_name in env["MODELS"]:
             if model_name in ["bert-large-uncased", "bert-base-uncased", "roberta-base", "roberta-large"]:
-                chunk_embed_dict[model_name].append(env.EmbedBertlike("work/${DATASET_NAME}/${MODEL_NAME}/embeds/"+"chunk_embed"+str(c_i)+".json.gz", chunk, MODEL_NAME=model_name, LAYERS=env["LAYERS"], DATASET_NAME=dataset_name))
+                chunk_embed_dict[model_name].append(env.EmbedBertlike("work/${DATASET_NAME}/${MODEL_NAME}/embeds/"+"chunk_embed_custom_${CUSTOM_LD}_"+str(c_i)+".json.gz", chunk, MODEL_NAME=model_name, LAYERS=env["LAYERS"], DATASET_NAME=dataset_name, CUSTOM_LD=env["CUSTOM_LD"]))
 
             elif model_name in ["google/canine-c", "google/canine-s"]:
-                chunk_embed_dict[model_name].append(env.EmbedCanine("work/${DATASET_NAME}/${MODEL_NAME}/embeds/"+"chunk_embed"+str(c_i)+".json.gz",chunk,MODEL_NAME=model_name, LAYERS=["last"], DATASET_NAME=dataset_name))
-            #elif model_name == "general_character_bert":
-                #chunk_embed_dict[model_name].append(env.EmbedCBert(embed_names,chunk,MODEL_NAME=model_name))
+                chunk_embed_dict[model_name].append(env.EmbedCanine("work/${DATASET_NAME}/${MODEL_NAME}/embeds/"+"chunk_embed_custom_${CUSTOM_LD}_"+str(c_i)+".json.gz",chunk,MODEL_NAME=model_name, LAYERS=["last"], DATASET_NAME=dataset_name, CUSTOM_LD=env["CUSTOM_LD"]))
 
+"""
     pred_ld_results = defaultdict(lambda: defaultdict(list))
     for max_ld in env["LDS_ANALYZE"]:
         for m_name, embeds in chunk_embed_dict.items():
             for e_i,embed in enumerate(embeds):
-                pred_ld_results[max_ld][m_name].append(env.Pred("work/${DATASET_NAME}/${MODEL_NAME}/preds/ld_${MAX_LD}_custom_${CUSTOM_LD}/chunk_pred"+str(e_i)+".json.gz", embed, MODEL_NAME=m_name, LAYERS=env["LAYERS"], DATASET_NAME=dataset_name, MAX_LD=max_ld, CUSTOM_LD=str(env["CUSTOM_LD"])))
+                pred_ld_results[max_ld][m_name].append(env.Pred("work/${DATASET_NAME}/${MODEL_NAME}/preds/ld_${MAX_LD}_custom_${CUSTOM_LD}/chunk_pred"+str(e_i)+".json.gz", embed, MODEL_NAME=m_name, LAYERS=env["LAYERS"], DATASET_NAME=dataset_name, MAX_LD=max_ld, CUSTOM_LD=env["CUSTOM_LD"]))
 
 
     for ld, pred_results in pred_ld_results.items():
@@ -172,13 +174,14 @@ for dataset_name in env["DATASETS"]:
                         "work/results/${DATASET_NAME}/${LD}/${MODEL_NAME}_accurate.csv",
                         "work/results/${DATASET_NAME}/${LD}/${MODEL_NAME}_inaccurate.csv",
                         "work/results/${DATASET_NAME}/${LD}_custom_${CUSTOM}/${MODEL_NAME}_summary.csv"],
-                        results, MODEL_NAME=m_name, DATASET_NAME=dataset_name, LAYERS="last", LD=ld, CUSTOM=str(env["CUSTOM_LD"])))
+                        results, MODEL_NAME=m_name, DATASET_NAME=dataset_name, LAYERS="last", LD=ld, CUSTOM=env["CUSTOM_LD"]))
             else:
                 for layer in env["LAYERS"]:
                     results_sums.append(env.PredictionSummary([
                         "work/results/${DATASET_NAME}/${LD}/${MODEL_NAME}_${LAYERS}_accurate.csv",
                         "work/results/${DATASET_NAME}/${LD}/${MODEL_NAME}_${LAYERS}_inaccurate.csv",
                         "work/results/${DATASET_NAME}/${LD}_custom_${CUSTOM}/${MODEL_NAME}_${LAYERS}_summary.csv"],
-                        results, MODEL_NAME=m_name, DATASET_NAME=dataset_name, LAYERS=layer, LD=ld, CUSTOM=str(env["CUSTOM_LD"])))
+                        results, MODEL_NAME=m_name, DATASET_NAME=dataset_name, LAYERS=layer, LD=ld, CUSTOM=env["CUSTOM_LD"]))
 
-    env.PredictionCSVSummary(["work/results/${DATASET_NAME}/summary_custom_${CUSTOM}.csv"], [s[2] for s in results_sums], DATASET_NAME=dataset_name, CUSTOM=str(env["CUSTOM_LD"]))
+    env.PredictionCSVSummary(["work/results/${DATASET_NAME}/summary_custom_${CUSTOM}.csv"], [s[2] for s in results_sums], DATASET_NAME=dataset_name, CUSTOM=env["CUSTOM_LD"])
+"""
